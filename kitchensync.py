@@ -39,33 +39,33 @@ def openFile(filename:str, output:str) -> list:
         except BaseException as err:
             print(f"Unexpected {err = }, {type(err) = }") # print my errors
 
-def printData(rows:list, fields:list, category:str) -> None:
-    "Receive a list of rows, and a field and print the results."
-    readout = [] # this is the finding from the list.
-    print(f"fields: ",fields[7],end=" ")
+def printSpecificResults(rows:list, fields:list, category:str) -> list:
+    "Receive a list of rows, and a field and print the specific results."
+    readout = [] # this is the results from the search.
     for row in rows:
-        if category == "Critical":
+        if category == "Critical": # Grab Criticals with a 7 CVSS or higher
             if row[2] >= "7":
-                readout.append(row)
-        elif category == "High":
-            if (row[2] >=5) or (row[2] <= 7):
-                readout.append(row)
+                if row[7] != readout[7]:
+                    readout.append(row)
+            elif category == "High": # Grab High's between a 5 and 7.
+                if (row[2] >=5) or (row[2] <= 7):
+                    readout.append(row)
+    return readout
+
+def printList(lst:list) -> None:
+    "Handle the printing of lists"
+    for row in lst:
+        print(f'Name: {row[7]}')
 
 # main function
 def main():
     # grab our objects to use
     fields = openFile(fileName, "fields")
     rows = openFile(fileName, "rows")
+    lst = printSpecificResults(rows, fields, "Critical")  # make into a future switch  -C for Critical -H for High
+    printList(lst)
 
 
-
-    # test printing 
-    print('\nFirst 5 rows are:\n')
-    for row in rows[:5]:
-        # parsing each column of a row
-        for col in row:
-            print("%10s"%col,end=" "),
-    print('\n')
 
 if __name__ == "__main__":
     main()
