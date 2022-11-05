@@ -42,13 +42,7 @@ def openFile(filename:str, output:str) -> list:
 def printSpecificResults(rows:list, fields:list, category:str) -> list:
     "Receive a list of rows, and a field and print the specific results."
     readout = [] # this is the results from the search.
-    for row in rows:
-        if category == "Critical": # Grab Criticals with a 7 CVSS or higher
-            if row[2] >= "7":
-                if row[7] != readout[7]:
-                    readout.append(row)
-            elif category == "High": # Grab High's between a 5 and 7.
-                if (row[2] >=5) or (row[2] <= 7):
+
                     readout.append(row)
     return readout
 
