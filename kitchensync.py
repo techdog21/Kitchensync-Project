@@ -9,49 +9,54 @@
 # while doing a good job at vunlerability scanning, fails to provide me with reasonable reporting
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
 # data from Tenable Nessus CSV files.
+#
+# This tool will also do some basic recon, and other basic actions to improve testing habits.
 
 # run nmap
 # merge multiple files into one file and print to output file .csv
 
-# libraries
+# libraries                         # anything with a *** are libraries that were outside of class.
 import os                           # read directory for files
 import sys                          # printing to a file
 import csv                          # read csv files
 import re                           # search expressions
 import subprocess                   # create subprocesses for scanning ***
 import argparse                     # commandline argument parser ***
-from bs4 import BeautifulSoup       # grab banners, and robots.txt
-import requests
+import requests                     # grab robots.txt and other text, html files.
 
 # Argument Parser
 # This sets up our arguments and help/options for the user
 # discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
 parser = argparse.ArgumentParser(description='Options')
-parser.add_argument("filename", type=str,help='filename of CSV to read')
-parser.add_argument('-f', '--field', type=str, default='host',help='field to search for the searchterm = Risk')
-parser.add_argument('-s', '--search', type=str, default='.',help='search term to use = Critical')
+parser.add_argument("filename", type=str, help='filename of CSV to read')
+parser.add_argument('-a', '--aCtion', action='store_true', default=False, help='Run a type of attack type [nmap / nikto / eyewitness / all], all for all attacks')
 parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically additional attack files and store in all output formats.')
+parser.add_argument('-d', '--download', type=str, default='robots.txt', help='file to download ex. robots.txt.  Text file only.')
+parser.add_argument('-f', '--field', type=str, default='host', help='field to search for the searchterm = Risk')
 parser.add_argument('-g', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks.')
-parser.add_argument('-r', '--rAttack', action='store_true', default=False, help='Run the attack after the files were created')
-parser.add_argument('-a', '--rAction', action='store_true', default=False, help='Run a type of attack type [nmap / nikto / eyewitness / all], all for all attacks')
-parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
 parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
+parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
+parser.add_argument('-r', '--rAttack', action='store_true', default=False, help='Run the attack after the files were created')
+parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical.  [ a period . is a wildcard for all]')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
-parser.add_argument('-d', '--download', type=str, default='robots.txt',help='file to download ex. robots.txt')
+# uncomm
 #args = parser.parse_args()
 
-filename = 'test.csv'
-search = 'robots.txt'
-field = 'Name'
-aprint = False
-cGraphics = False
+# comment these out when not debugging.
+filename = 'test.csv' 
+aCtion = False
 cAttack = False
+download = ''
+field = 'Name'
+cGraphics = False
+iPrint = False
+aPrint = False
 rAttack = False
-webScrap = True
-rAction = False
+search = '.'
+webScrap = False
 
 #global variables
-original_stdout = sys.stdout
+original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
 ############################################################
 # open files function
@@ -93,16 +98,24 @@ def findResults(fields:list, rows:list, fcat:str, search:str) -> list:
 
 def printList(fields:list, lst:list) -> None:
     "Handle the printing of lists by using column format printing"
-
     # if were printing then set stdout to a file. 
     # (https://www.delftstack.com/howto/python/python-output-to-file/)
-    if (aprint == True) and (iprint == True):
+    if (aPrint == True) and (iPrint == True):
+        # print only IP addresses
+        uniqueList = []
         turnOnPrint('sink-output.txt') # turn on std console print
         for row in lst:
-            print('{:<15s} '.format(row[4]))
+            if row[4] not in uniqueList:
+                uniqueList.append(row[4])
+        for item in uniqueList:
+            uniqueList.sort()
+            print('{:<15s} '.format(item))
 
         turnOffPrint() # my own function to turn off console print.
-    else:    
+    else:
+        # print standard output, and print to file if desired
+        if aPrint == True: 
+            turnOnPrint('sink-output.txt') # turn on std console print
         # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
         for row in lst:
             print('[+] {:<15s} {:<7s} {:<10} {:<10} {:<15} {:<20}'.format(row[4], row[6], row[5], row[3], row[1], row[7]))
@@ -113,8 +126,8 @@ def printList(fields:list, lst:list) -> None:
         # make a printout of the core main calcs so you can see if critical/highs exist and should be examined.
         crit, high, med, low, non = calcRisk(lst)
         print(f'Risk Criteria [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}]\n')
-
-       
+        turnOffPrint() # turn off printing
+    
 ################################################################
 
 def attackFiles(lst:list) -> subprocess:
@@ -149,7 +162,7 @@ def runMe(prog:str) -> bool:
             return False
     if prog.lower() == 'nmap' or prog.lower() == 'all':
         if os.path.exists('nmap'):
-            subprocess.run(["nmap", "-sS", "-sC", '-iL', 'http-nmap.sh', "--script=http*", "-oN", 'results' + "-nmap"])
+            subprocess.run(["nmap", "-sS", "-sC", '-iL', 'http-nmap.txt', "--script=http*", "-oN", 'results' + "-nmap"])
     return False
 #####################################################################
 
@@ -170,6 +183,7 @@ def calcRisk(rows:list) -> bool:
         ncounter += row[3].count('None')
     # return multiple: https://note.nkmk.me/en/python-function-return-multiple-values/
     return ccounter, hcounter, mcounter, lcounter, ncounter
+#############################################################
 
 def riskGraph(crit:int,high:int,med:int,low:int) -> bool:
     "Create a graph using the risk points."
@@ -200,6 +214,7 @@ def get_pages(url) -> str:
     webpage = requests.get(url)
     webtext = webpage.text
     return webtext
+#######################################################
 
 def requestPage(lst:list, req:str):
     "Function to go thorugh and return different URL's for Soup."
@@ -207,13 +222,13 @@ def requestPage(lst:list, req:str):
 
     for rows in lst:
         url = 'http://' + rows[4] + ':' + rows[6]
-        # choose robots or other files
-        if req == 'robots':
-            send = url + "/robots.txt"
-            fil = rows[4] + req  
-            turnOnPrint(fil + '.txt') # turn on console printing
-            print(get_pages(send)) # grab a robot file.
-            turnOffPrint() # turn off std print.
+        # choose robots or other file
+        send = url + "/" + req
+        fil = rows[4] + req  
+        turnOnPrint(fil + '.txt') # turn on console printing
+        print(get_pages(send)) # grab a robot file.
+        turnOffPrint() # turn off std print.
+#######################################################
 
 def turnOnPrint(fil:str):
     "Turn on Console Prints"
@@ -222,13 +237,13 @@ def turnOnPrint(fil:str):
     
     original_stdout = sys.stdout  # save original stdout
     sys.stdout = open(fil, 'w') # write file
+#########################################################
 
 def turnOffPrint():
     "Turn off stdout back to original for Console Print off"
     # set stdout back
     sys.stdout = original_stdout
-
-
+##########################################################
 
 # main function
 def main():
@@ -240,8 +255,6 @@ def main():
     # go get what we are looking for...
     lst = findResults(fields, rows, search, field)  # make into a future switch  -C for Critical -H for High
     printList(fields, lst) # print fields, and findings.
-    ################################################
-    # usage help per run
     print("\nSearchable Fields: ", fields, end= '\n') # print seperator
     print("Search for all records:  python kitchensink.py test.csv -s . -f Solution \n\n ")
     ################################################
@@ -252,10 +265,10 @@ def main():
     if cAttack == True:
         attackFiles(lst)
     if rAttack == True:
-        runMe(rAction)
+        runMe(aCtion)
     if webScrap == True:
-        print('running. robots')
-        requestPage(lst, 'robots')
+        print('running. file download')
+        requestPage(lst, download)
     ###############################################
     # testing
     

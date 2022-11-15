@@ -9,6 +9,8 @@
 # while doing a good job at vunlerability scanning, fails to provide me with reasonable reporting
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
 # data from Tenable Nessus CSV files.
+#
+# This tool will also do some basic recon, and other basic actions to improve testing habits.
 
 # run nmap
 # merge multiple files into one file and print to output file .csv
@@ -20,28 +22,27 @@ import csv                          # read csv files
 import re                           # search expressions
 import subprocess                   # create subprocesses for scanning ***
 import argparse                     # commandline argument parser ***
-from bs4 import BeautifulSoup       # grab banners, and robots.txt
-import requests
+import requests                     # grab robots.txt and other text, html files.
 
 # Argument Parser
 # This sets up our arguments and help/options for the user
 # discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
 parser = argparse.ArgumentParser(description='Options')
 parser.add_argument("filename", type=str, help='filename of CSV to read')
-parser.add_argument('-f', '--field', type=str, default='host', help='field to search for the searchterm = Risk')
-parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical')
-parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically additional attack files and store in all output formats.')
-parser.add_argument('-g', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks.')
-parser.add_argument('-r', '--rAttack', action='store_true', default=False, help='Run the attack after the files were created')
 parser.add_argument('-a', '--action', action='store_true', default=False, help='Run a type of attack type [nmap / nikto / eyewitness / all], all for all attacks')
-parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
-parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
-parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
+parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically additional attack files and store in all output formats.')
 parser.add_argument('-d', '--download', type=str, default='robots.txt', help='file to download ex. robots.txt.  Text file only.')
+parser.add_argument('-f', '--field', type=str, default='host', help='field to search for the searchterm = Risk')
+parser.add_argument('-g', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks.')
+parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
+parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
+parser.add_argument('-r', '--rAttack', action='store_true', default=False, help='Run the attack after the files were created')
+parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical.  [ a period . is a wildcard for all]')
+parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
 args = parser.parse_args()
 
 #global variables
-original_stdout = sys.stdout
+original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
 ############################################################
 # open files function
@@ -232,7 +233,6 @@ def turnOffPrint():
 
 # main function
 def main():
-    #
     #
     #################################################
     # grab the file, and start gathering information
