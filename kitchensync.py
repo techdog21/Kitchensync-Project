@@ -269,10 +269,7 @@ def main():
     if webScrap == True:
         print('running. file download')
         requestPage(lst, download)
-    ###############################################
-    # testing
-    
-    
+    ###############################################    
 
 # dunder start
 if __name__ == "__main__":
