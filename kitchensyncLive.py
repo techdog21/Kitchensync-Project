@@ -2,7 +2,7 @@
 # Author: Jerry Craft
 # October 21, 2022
 #
-# KitchenSink.py 
+# KitchenSink.py -- Everything and the kitchen sink for Nessus files
 # This program is an all around clean up tool I am designing to help me with my 
 # penetration testing problems.  This tool is surrounded around the idea that Tenable Nessus Pro,
 # while doing a good job at vunlerability scanning, fails to provide me with reasonable reporting
@@ -38,7 +38,7 @@ parser.add_argument('-m', '--cMerge', type=str, help='Identify a second file to 
 parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
 parser.add_argument('-r', '--rAttack', action='store_true', default=False, help='Run the attack after the files were created')
 parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical.  [ a period . is a wildcard for all]')
-parser.add_argument('-t', '--topTen', action='store_true', default=False, help='Generate a top 10 list of systems, and risks')
+parser.add_argument('-t', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
 args = parser.parse_args()
 
@@ -90,7 +90,7 @@ def printList(fields:list, lst:list) -> None:
     if (args.aPrint == True) and (args.iPrint == True):
         # print only IP addresses
         uniqueList = []
-        turnOnPrint('sink-output.txt') # turn on std console print
+        turnOnPrint('ip-address-output.txt') # turn on std console print
         for row in lst:
             if row[4] not in uniqueList:
                 uniqueList.append(row[4])
@@ -249,8 +249,8 @@ def merge(lst:list, fil:str)-> list:
     print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.')
 ##############################################################
 
-def topTenIP(lst:list) -> list:
-    "Get the top 10 IP addresses from the lst, and then generate a list for those systems with total risk"
+def topTenIP(lst:list, amt:str) -> list:
+    "Get the top XX IP addresses from the lst, and then generate a list for those systems with total risk"
     # declare
     topIP = []
     finalLst = []
@@ -276,16 +276,20 @@ def topTenIP(lst:list) -> list:
         sumRisk = 0
     # sort all by risk value and keep top 10 in a list
     calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
-    del(calcLst[10:]) # got my top 10.
+    del(calcLst[amt:]) # got my top XX.
     # now get those rows that have all the detail for those IP's.
     lst.clear() # reuse lst.
     for ip in calcLst:
         for rows in finalLst:
             if rows[4] == ip[0]:
                 lst.append(rows)
+    lst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
     printList(fields, lst)
-    #a, b, c, d, e = calcRisk(lst)
-    #riskGraph(a,b,c,d)
+    print(f'Top systems most risky are in order: ')
+    for ip in calcLst:
+        print('IP: {:<16} : CVE Risk Value: {:.2f}'.format(ip[0], ip[1]))
+
+    #################################################
 
 # main function
 def main():
@@ -293,28 +297,35 @@ def main():
     #################################################
     # grab the file, and start gathering information
     fields, rows = openFile(args.filename) # Grab the data from the csv, and return fields + rows in a list
-    # go get what we are looking for...
-    lst = findResults(fields, rows, args.search, args.field)  # make into a future switch  -C for Critical -H for High
-    printList(fields, lst) # print fields, and findings.
-    print("\nSearchable Fields: ", fields, end= '\n') # print seperator
-    print("Search for all records:  python kitchensink.py test.csv -s . -f Solution \n\n ")
     ################################################
     # Do things based upon arg switches
+    if args.topTen == False:
+        # go get what we are looking for...
+        lst = findResults(fields, rows, args.search, args.field)  # make into a future switch  -C for Critical -H for High
+        printList(fields, lst) # print fields, and findings.
+    else:
+        print('\n\nGenerating Top list')
+        topTenIP(rows, args.topTen)
+    #  Print footer
+    print("\nSearchable Fields: ", fields, end= '\n\n') # print seperator
+    print("Search for all records:  python kitchensink.py test.csv -s . -f Solution \n\n ")
+
     if args.cGraphics == True:
+        print('Creating graphics...')
         a, b, c, d, e = calcRisk(lst) # I won't always use e = None
         riskGraph(a,b,c,d)
     elif args.cAttack == True:
+        print('Generating files.')
         attackFiles(lst)
     elif args.rAttack == True:
+        print('Attacking systems.')
         runMe(args.action)
     elif args.webScrap == True:
         print('running. file download')
         requestPage(lst, args.download)
     elif args.cMerge != None:
+        print('Merging documents')
         merge(lst, args.cMerge)
-    elif args.topTen == True:
-        print('Generating Top 10 list')
-        topTenIP(lst)
     ###############################################
 
 # dunder start
