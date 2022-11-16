@@ -1,11 +1,10 @@
 # kitchensync.py
 # Author: Jerry Craft
-# Project for CSCI E-7 Python
 # October 21, 2022
 #
 # KitchenSink.py 
 # This program is an all around clean up tool I am designing to help me with my 
-# penetration testing problems.  This tool is surrounded around the idea that Tenable Nessus Pro
+# penetration testing problems.  This tool is surrounded around the idea that Tenable Nessus Pro,
 # while doing a good job at vunlerability scanning, fails to provide me with reasonable reporting
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
 # data from Tenable Nessus CSV files.
@@ -35,9 +34,11 @@ parser.add_argument('-d', '--download', type=str, default='robots.txt', help='fi
 parser.add_argument('-f', '--field', type=str, default='host', help='field to search for the searchterm = Risk')
 parser.add_argument('-g', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks.')
 parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
+parser.add_argument('-m', '--cMerge', type=str, help='Identify a second file to merge with the core file, and both files data will be merged.')
 parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
 parser.add_argument('-r', '--rAttack', action='store_true', default=False, help='Run the attack after the files were created')
 parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical.  [ a period . is a wildcard for all]')
+parser.add_argument('-t', '--topTen', action='store_true', default=False, help='Generate a top 10 list of systems, and risks')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
 args = parser.parse_args()
 
@@ -195,6 +196,8 @@ def riskGraph(crit:int,high:int,med:int,low:int) -> bool:
     plt.show()
 ######################################################
 
+
+
 def get_pages(url) -> str:
     "Grab webpages or robots, etc."
     webpage = requests.get(url)
@@ -231,6 +234,59 @@ def turnOffPrint():
     sys.stdout = original_stdout
 ##########################################################
 
+##########################################################
+
+def merge(lst:list, fil:str)-> list:
+    'Merge two different csv files together.'
+    fields, lst2 = openFile(fil) # go get the second file and return a list
+    lst.extend(lst2) # https://www.w3schools.com/python/gloss_python_join_lists.asp
+    print('Merged: ', fil)
+    ## Save the merged file into a new file so we don't destroy original.
+    with open('new-merged-csv.csv', 'w', newline='') as f: # 
+        write = csv.writer(f) # https://stackoverflow.com/questions/3348460/csv-file-written-with-python-has-blank-lines-between-each-row
+        write.writerow(fields) #https://www.geeksforgeeks.org/python-save-list-to-csv/
+        write.writerows(lst)
+    print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.')
+##############################################################
+
+def topTenIP(lst:list) -> list:
+    "Get the top 10 IP addresses from the lst, and then generate a list for those systems with total risk"
+    # declare
+    topIP = []
+    finalLst = []
+    calcLst = []
+    sumRisk = 0
+    # get a list of host addresses to begin
+    for rows in lst:
+        if rows[4] not in topIP:
+            topIP.append(rows[4])
+    # now get a list of all vulnerabilities for these hosts
+    fields, rows = openFile(args.filename)
+    for ip in topIP:
+        for row in rows:
+            if ip == row[4]:
+                finalLst.append(row)
+    # now calculate up all the risks for each host to get a top 10
+    for ip in topIP:
+        for rows in finalLst:
+            if ip in rows:
+                if rows[2] != "":
+                    sumRisk += float(rows[2])
+        calcLst.append([ip, sumRisk])
+        sumRisk = 0
+    # sort all by risk value and keep top 10 in a list
+    calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
+    del(calcLst[10:]) # got my top 10.
+    # now get those rows that have all the detail for those IP's.
+    lst.clear() # reuse lst.
+    for ip in calcLst:
+        for rows in finalLst:
+            if rows[4] == ip[0]:
+                lst.append(rows)
+    printList(fields, lst)
+    #a, b, c, d, e = calcRisk(lst)
+    #riskGraph(a,b,c,d)
+
 # main function
 def main():
     #
@@ -247,13 +303,18 @@ def main():
     if args.cGraphics == True:
         a, b, c, d, e = calcRisk(lst) # I won't always use e = None
         riskGraph(a,b,c,d)
-    if args.cAttack == True:
+    elif args.cAttack == True:
         attackFiles(lst)
-    if args.rAttack == True:
+    elif args.rAttack == True:
         runMe(args.action)
-    if args.webScrap == True:
+    elif args.webScrap == True:
         print('running. file download')
         requestPage(lst, args.download)
+    elif args.cMerge != None:
+        merge(lst, args.cMerge)
+    elif args.topTen == True:
+        print('Generating Top 10 list')
+        topTenIP(lst)
     ###############################################
 
 # dunder start
