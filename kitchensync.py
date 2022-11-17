@@ -20,13 +20,11 @@ import requests                     # grab robots.txt and other text, html files
 from tqdm import tqdm               # progress bar for longer processes ***
                                   # use searchsploit library ***
                                     # https://github.com/andreafioraldi/cve_searchsploit
-  
 # Argument Parser
 # This sets up our arguments and help/options for the user
 # discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
 parser = argparse.ArgumentParser(description='Options')
 parser.add_argument("filename", type=str, help='filename of CSV to read')
-parser.add_argument('-a', '--aCtion', action='store_true', default=False, help='Run a type of attack type [nmap / nikto / eyewitness / all], all for all attacks')
 parser.add_argument('-b', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a search')
 parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically additional attack files and store in all output formats.')
 parser.add_argument('-d', '--download', type=str, default='robots.txt', help='filename to name file after its been downloaded [ex. robots.txt].  Text file only.')
@@ -36,13 +34,10 @@ parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help=
 parser.add_argument('-m', '--cMerge', type=str, help='Identify a second file to merge with the core file, and both files data will be merged.')
 parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
 parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard. It must be a specific search.')
-parser.add_argument('-r', '--rAttack', action='store_true', default=False, help='Run the attack after the files were created')
 parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical.  [ a period . is a wildcard for all]')
 parser.add_argument('-t', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
 parser.add_argument('-x', '--eXploit', action='store_true', default=False, help='Run SearchSploit to find an exploit based upon a list of CVEs')
-
-# uncomm
 #args = parser.parse_args()
 
 # comment these out when not debugging.
@@ -56,7 +51,6 @@ iPrint = False
 cMerge = None
 aPrint = False
 query = False
-rAttack = False
 search = '.'
 topTen = False
 webScrap = False
@@ -80,6 +74,7 @@ def openFile(filename:str) -> list:
 
     except BaseException as err:
             print(f'Filename of the Nessus Pro CSV mandatory')
+
     return fields, rows
 ############################################################
 
@@ -91,6 +86,7 @@ def findResults(fields:list, rows:list, fcat:str, search:str) -> list:
             if search.lower() == field.lower():
                 rname = fields.index(field)
                 break
+            
         # build list for our readout [List Comprehension decision for experiment]
         readout = [row for row in rows
                     if (row[rname].lower() == fcat.lower()) or (re.search(fcat.lower(), row[rname].lower()))]
@@ -180,27 +176,6 @@ def attackFiles(lst:list):
                         np.write(niktoitem)
                         nm.write(nmapitem)
     print("files created...")
-
-###################################################################
-
-def runMe(prog:str) -> bool:
-    """Take a string for the program to run, and return bool if success/fail"""
-    if prog.lower() == "eyewitness" or prog.lower() == 'all':
-        if os.path.exists('eyewitness.txt'):
-            subprocess.call(["eyewitness", "-f", "./eyewitness.txt", "--web"])
-            return True
-        else: 
-            return False
-    if prog.lower() == 'nikto' or prog.lower() == 'all':
-        if os.path.exists('nikto.sh'):
-            subprocess.call(["nikto.sh"])
-            return True
-        else:
-            return False
-    if prog.lower() == 'nmap' or prog.lower() == 'all':
-        if os.path.exists('nmap'):
-            subprocess.run(["nmap", "-sS", "-sC", '-iL', 'http-nmap.txt', "--script=http*", "-oN", 'results' + "-nmap"])
-    return False
 
 #####################################################################
 
@@ -308,6 +283,7 @@ def merge(lst:list, fil:str)-> list:
         write.writerow(fields) #https://www.geeksforgeeks.org/python-save-list-to-csv/
         write.writerows(lst)
     print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.')
+
 ##############################################################
 
 def stakBar(lst:list):
@@ -319,6 +295,7 @@ def stakBar(lst:list):
     low = 0
     nan = 0
     newLst = []
+
     for row in lst:
         if row[4] not in newLst:
             # if IP not found in newLst
@@ -386,18 +363,20 @@ def topTenIP(lst:list, amt) -> list:
 
 def searchExploit(lst:list) -> None:
     "Search for exploits using Kali version of SearchSploit"
-    import cve_searchsploit as cs # import if needed
+    import cve_searchsploit as cs # load if needed
+    resultLst = []
     # first clone exploitdb in case its not available
     #cs.update_db()
-    for rows in tqdm(lst): # progress bar as CVE to Exploits are found
-        if rows[1] == "":
-            print("No CVE's found.  Search for CVE's first.")
-            return False
-        else:
-            # find each cve as necessary
-            cs.edbid_from_cve(rows[1])
-#####################################################
+    exploitFile = open('exploit.txt', 'w')
+    for rows in tqdm(lst):  # progress bar as CVE to Exploits are found
+        # find each cve as necessary
+        if cs.edbid_from_cve(rows[1]) != []:
+            if rows[1] not in resultLst: # if CVE has already been seen, move on.
+                resultLst.append(rows[1]) # add to list and print
+                print(f'CVE: {rows[1]} and Exploit: ', cs.edbid_from_cve(rows[1]), file = exploitFile)
+    exploitFile.close()
 
+#####################################################
 # main function
 def main():
     #
@@ -419,26 +398,29 @@ def main():
 
     if cGraphics == True:
         print('Creating graphics...')
-        a, b, c, d, e = calcRisk(lst, 'all') # I won't always use e = None, mostly bad data
+        a, b, c, d, e = calcRisk(lst, 'all') # I won't always use e = None
         riskGraph(a,b,c,d)
     elif cAttack == True:
         print('Generating files.')
         attackFiles(lst)
-    elif rAttack == True:
-        print('Attacking systems.')
-        runMe(aCtion)
-    elif webScrap == True:
-        print('running. file download')
-        requestPage(lst, download)
     elif cMerge != None:
         print('Merging documents')
         merge(lst, cMerge)
     elif eXploit == True:
         print('Searching for exploits, check exploit.txt for findings')
         searchExploit(lst)
-    elif (search != '.') and (query == True):
+
+    if (webScrap == True) and (download != ""):
+        print('running. file download')
+        requestPage(lst, download)
+    else:
+        print('Check your command.  In order to scrape a file you need to choose -w and -d with a filename.  [-w -d robots.txt]')
+    
+    if (search != '.') and (query == True):
         pQuery(lst)
-    ###############################################    
+    else:
+        print('Check your command.  In order to pull a query on a vulnerability name, it must be a single name item.  [-n name -s eternalblue -q')
+    ###############################################
 
 # dunder start
 if __name__ == "__main__":

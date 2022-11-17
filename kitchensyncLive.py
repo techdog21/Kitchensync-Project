@@ -4,38 +4,33 @@
 #
 # KitchenSink.py -- Everything and the kitchen sink for Nessus files
 # This program is an all around clean up tool I am designing to help me with my 
-# penetration testing problems.  This tool is surrounded around the idea that Tenable Nessus Pro,
+# penetration testing problems.  This tool is surrounded around the idea that Tenable Nessus Pro
 # while doing a good job at vunlerability scanning, fails to provide me with reasonable reporting
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
 # data from Tenable Nessus CSV files.
-#
-# This tool will also do some basic recon, and other basic actions to improve testing habits.
-
-# run nmap
-# merge multiple files into one file and print to output file .csv
 
 # libraries                         # anything with a *** are libraries that were outside of class.
+import os                           # read directory for files
 import sys                          # printing to a file
 import csv                          # read csv files
 import re                           # search expressions
+import subprocess                   # create subprocesses for scanning ***
 import argparse                     # commandline argument parser ***
 import requests                     # grab robots.txt and other text, html files.
 from tqdm import tqdm               # progress bar for longer processes ***
-                                    # use searchsploit library ***
-                                    # https://github.com/andreafioraldi/cve_searchsploit               
-
+                                  # use searchsploit library ***
+                                    # https://github.com/andreafioraldi/cve_searchsploit
 # Argument Parser
 # This sets up our arguments and help/options for the user
 # discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
 parser = argparse.ArgumentParser(description='Options')
 parser.add_argument("filename", type=str, help='filename of CSV to read')
-parser.add_argument('-a', '--action', action='store_true', default=False, help='Run a type of attack type [nmap / nikto / eyewitness / all], all for all attacks')
 parser.add_argument('-b', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a search')
 parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically additional attack files and store in all output formats.')
 parser.add_argument('-d', '--download', type=str, default='robots.txt', help='filename to name file after its been downloaded [ex. robots.txt].  Text file only.')
 parser.add_argument('-f', '--field', type=str, default='host', help='field to search for the searchterm = Risk')
 parser.add_argument('-g', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks.')
-parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
+parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
 parser.add_argument('-m', '--cMerge', type=str, help='Identify a second file to merge with the core file, and both files data will be merged.')
 parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
 parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard. It must be a specific search.')
@@ -47,6 +42,24 @@ args = parser.parse_args()
 
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ############################################################
 # open files function
@@ -90,6 +103,7 @@ def printList(fields:list, lst:list) -> None:
     "Handle the printing of lists by using column format printing"
     # if were printing then set stdout to a file. 
     # (https://www.delftstack.com/howto/python/python-output-to-file/)
+    ## If we choose IP addresses only then print those to a file.
     if (args.aPrint == True) and (args.iPrint == True):
         # print only IP addresses
         uniqueList = []
@@ -143,10 +157,10 @@ def pQuery(lst:list) -> None:
     print('-------------------------------------------------------------------')
     print(f'[+] Synopsis: ', rows[8])
     print(f'\n[+] Description: ', rows[9])
+    print('-------------------------------------------------------------------')
     print('\n\n\n')
     
 ################################################################
-
 
 def attackFiles(lst:list):
     "Gather Eyewitness data / nikto data and create attack files"
@@ -162,27 +176,8 @@ def attackFiles(lst:list):
                         np.write(niktoitem)
                         nm.write(nmapitem)
     print("files created...")
-###################################################################
 
-# def runMe(prog:str) -> bool:
-#     """Take a string for the program to run, and return bool if success/fail"""
-#     if prog.lower() == "eyewitness" or prog.lower() == 'all':
-#         if os.path.exists('eyewitness.txt'):
-#             subprocess.call(["eyewitness", "-f", "./eyewitness.txt", "--web"])
-#             return True
-#         else: 
-#             return False
-#     if prog.lower() == 'nikto' or prog.lower() == 'all':
-#         if os.path.exists('nikto.sh'):
-#             subprocess.call(["nikto.sh"])
-#             return True
-#         else:
-#             return False
-#     if prog.lower() == 'nmap' or prog.lower() == 'all':
-#         if os.path.exists('nmap'):
-#             subprocess.run(["nmap", "-sS", "-sC", '-iL', 'http-nmap.txt', "--script=http*", "-oN", 'results' + "-nmap"])
-#     return False
-#####################################################################
+###################################################################
 
 def calcRisk(lst:list, item:str) -> int:
     """ Generate risk figures for detailed data points """    
@@ -212,6 +207,7 @@ def calcRisk(lst:list, item:str) -> int:
             mcounter += row[3].count('Medium')
             lcounter += row[3].count('Low')
             ncounter += row[3].count('None')
+
     # return multiple: https://note.nkmk.me/en/python-function-return-multiple-values/
     return ccounter, hcounter, mcounter, lcounter, ncounter
 #############################################################
@@ -276,8 +272,6 @@ def turnOffPrint():
     sys.stdout = original_stdout
 ##########################################################
 
-##########################################################
-
 def merge(lst:list, fil:str)-> list:
     'Merge two different csv files together.'
     fields, lst2 = openFile(fil) # go get the second file and return a list
@@ -289,34 +283,19 @@ def merge(lst:list, fil:str)-> list:
         write.writerow(fields) #https://www.geeksforgeeks.org/python-save-list-to-csv/
         write.writerows(lst)
     print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.')
-##############################################################
-
-def wordCloud(fields: list, lst:list, search:str):
-    #I only want to see the graphing message if we choose to graph.
-    import matplotlib.pyplot as plt  # Turn on if were graphing only.  Don't turn on globally
-    from wordcloud import WordCloud, STOPWORDS
-    stopwords = set(STOPWORDS)
-
-    comment_words = (comment_words.join(lst))
-
-    wordcloud = WordCloud(width = 800, height = 800,
-                    background_color ='white',
-                    stopwords=stopwords,
-                    min_font_size=10).generate(comment_words)
     
 ##############################################################
 
 def stakBar(lst:list):
     "Generate a stacked bar chart to help understand results"
     import matplotlib.pyplot as plt
-    import numpy as np
     crit = 0
     high = 0
     med = 0
     low = 0
     nan = 0
     newLst = []
-    c = ['#cc0000', '#ff8300', '#ffcf00', '#0000d4']
+    
     for row in lst:
         if row[4] not in newLst:
             # if IP not found in newLst
