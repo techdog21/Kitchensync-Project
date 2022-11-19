@@ -9,33 +9,41 @@
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
 # data from Tenable Nessus CSV files.
 
-# libraries                         # anything with a *** are libraries that were outside of class.
-import sys                          # printing to a file
-import csv                          # read csv files
-import re                           # search expressions
-import argparse                     # commandline argument parser ***
-import requests                     # grab robots.txt and other text, html files.
-from tqdm import tqdm               # progress bar for longer processes ***
-                                  # use searchsploit library ***
-                                    # https://github.com/andreafioraldi/cve_searchsploit
+# BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
+
+# libraries                             # anything with a *** are libraries that were outside of class.
+import sys                              # printing to a file
+import csv                              # read csv files
+import re                               # search expressions
+import argparse                         # commandline argument parser ***
+import requests                         # grab robots.txt and other text, html files.
+from tqdm import tqdm                   # progress bar for longer processes ***
+
 # Argument Parser
 # This sets up our arguments and help/options for the user
 # discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
-parser = argparse.ArgumentParser(description='Options')
-parser.add_argument("filename", type=str, help='filename of CSV to read')
-parser.add_argument('-b', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a TOPTEN type search')
-parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically additional attack files and store in all output formats.')
-parser.add_argument('-d', '--download', type=str, default='robots.txt', help='filename to name file after its been downloaded [ex. robots.txt].  Text file only.')
-parser.add_argument('-f', '--field', type=str, default='host', help='field to search for the searchterm = Risk')
-parser.add_argument('-g', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks.')
-parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
-parser.add_argument('-m', '--cMerge', type=str, help='Identify a second file to merge with the core file, and both files data will be merged.')
-parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
-parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard. It must be a specific search.')
-parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical.  [ a period . is a wildcard for all]')
-parser.add_argument('-t', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks')
-parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
-parser.add_argument('-x', '--eXploit', action='store_true', default=False, help='Run SearchSploit to find an exploit based upon a list of CVEs')
+
+parser = argparse.ArgumentParser(
+        prog='kitchensink.py', 
+        description='This program is a Nessus Pro CSV Parser.',
+        epilog='Compiled for Python 3.9. The libraries needed are: sys, csv, re, argparse, requests, tqdm, matplotlib, searchsploit ' +
+        '[https://github.com/andreafioraldi/cve_searchsploit]')
+
+parser.add_argument("filename", type=str, help='The [filename] of CSV to read and display.  These are the results you want.')
+parser.add_argument('-bar', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a TOPTEN type search only')
+parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically create attack files and store in all output formats.')
+parser.add_argument('-download', '--download', type=str, default='robots.txt', help='Download a file, and list the filename to name the file after its been downloaded [ex. -d robots.txt].  Text file only.')
+parser.add_argument('-f', '--field', type=str, default='host', help='The field to search for in the data set [-s Risk]')
+parser.add_argument('-graph', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks for any search.  Run a search and use [-g] at the end.')
+parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print a file of the IP addresses of a search.  Run a search and put [-p] at the end')
+parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
+parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
+parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
+parser.add_argument('-s', '--search', type=str, default='.', help='search term to use [ -s Critical].  [ a period . is a wildcard for all]')
+parser.add_argument('-sum', '--summary', action='store_true', default=False, help='List all types of vulnability names discovered.  This is a simple list to aid in searching data.')
+parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
+parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='WebScrape to a file. Example [robots.txt]')
+parser.add_argument('-x', '--eXploit', action='store_true', default=False, help='Run SearchSploit to find an exploit based upon a list of CVEs searched.')
 args = parser.parse_args()
 
 #global variables
@@ -51,9 +59,11 @@ def openFile(filename:str) -> list:
             csvreader = csv.reader(csvfile)
             fields = next(csvreader)
             rows = [row for row in csvreader] # [List Comprehension Experiment]
-            
-    except BaseException as err:
-            print(f'Filename of the Nessus Pro CSV mandatory')
+    
+    except csv.Error as err:
+        print(f'\nError in reading the CSV file.  Check your file.\n\n')
+    except IOError as err:
+        print(f'\nFilename of the Nessus Pro CSV mandatory, file not found.\n\n')
 
     return fields, rows
 ############################################################
@@ -61,6 +71,7 @@ def openFile(filename:str) -> list:
 def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
     "universal field search feature, tell me the field, and the string, and I will find it"
     readout = [] # this is the results from the search.
+    ipLst = []
 
     try:
         for field in fields:  # find desired field
@@ -71,52 +82,64 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
         # build list for our readout [List Comprehension decision for experiment]
         readout = [rows for rows in lst
                     if (rows[rname].lower() == fcat.lower()) or (re.search(fcat.lower(), rows[rname].lower()))]
-        # sort key lambda JDP and https://blogboard.io/blog/knowledge/python-sorted-lambda/
+
+               # sort key lambda JDP and https://blogboard.io/blog/knowledge/python-sorted-lambda/
         readout.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
 
-        # remove duplicates is switch is set for a summary list
- 
-    except BaseException as err:
-        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid')
+        # gather up the ip addresses for our count
+        for rows in readout:
+            if rows[4] not in ipLst:
+                ipLst.append(rows[4])
 
-    return readout
+        # raise error if nothing is returnable.
+        if len(readout) == 0:
+            raise ValueError
+
+    except BaseException as err:
+        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
+
+    return readout, ipLst
+#############################################################
+def printIP(lst)-> None:
+    "Print a file of IP addresses to be used with others"
+    # print only IP addresses
+    uniqueList = []
+    printfile = open('ip-address-output.txt', 'w') 
+    # add unique ip addresses to a new list
+    for rows in lst:
+            if rows[4] not in uniqueList:
+                uniqueList.append(rows[4])
+    # sort the new list
+    uniqueList.sort()
+    # print IP addresses into a file.
+    for item in uniqueList:
+        print('{:<15s} '.format(item), file= printfile)
+    printfile.close()
+    print('IP addresses printed...')
 #############################################################
 
-def printList(fields:list, lst:list) -> None:
-    "Handle the printing of lists by using column format printing"
-    # if were printing then set stdout to a file. 
-    # (https://www.delftstack.com/howto/python/python-output-to-file/)
-    ## If we choose IP addresses only then print those to a file.
-    if (args.aPrint == True) and (args.iPrint == True):
-        # print only IP addresses
-        uniqueList = []
-        printfile = open('ip-address-output.txt', 'w') 
-        # add unique ip addresses to a new list ##############################################################################################################
-        for rows in lst:
-             if rows[4] not in uniqueList:
-                 uniqueList.append(rows[4])
-        # sort the new list
-        uniqueList.sort()
-        # print IP addresses into a file.
-        for item in uniqueList:
-            print('{:<15s} '.format(item), file= printfile)
-        printfile.close()
-        print('IP addresses printed...')
-    else:
-        # print standard output, and print to file if desired
-        if args.aPrint == True: 
-            turnOnPrint('sink-output.txt') 
-        # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
-        for rows in lst:
-            print('[+] {:<15s} {:<7s} {:<10} {:<10} {:<15} {:.70}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
-        print('---------------------------------------------------------------------------------------------------------')
-        print('[=] {:<15s} {:<7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
-        print("\nTotal Entries: ", len(lst)) # print record count
+def printList(fields:list, lst:list, ipLst) -> None:
+    "Handle the printing of lists by using column format printing" 
+    # Turn on printing if necessary
+    if args.aPrint == True:
+        print('Printing to file: sink-output.txt')
+        turnOnPrint('sink-output.txt') 
+    # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
+    for rows in lst:
+        print('[+] {:<15s} {:<7s} {:<10} {:<10} {:<15} {:.70}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
+    print('---------------------------------------------------------------------------------------------------------')
+    print('[=] {:<15s} {:<7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
+    print("\nTotal Entries: ", len(lst)) # print record count
+    print("Total IP Addresses in the list: ", len(ipLst))
 
-        # make a printout of the core main calcs so you can see if critical/highs exist and should be examined.
-        crit, high, med, low, non = calcRisk(lst, 'all')
-        print(f'Risk Criteria [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}]\n')
+    # make a printout of the core main calcs so you can see if critical/highs exist and should be examined.
+    crit, high, med, low, non = calcRisk(lst, 'all')
+    print(f'Risk Criteria: [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}]\n')
+    print("Searchable Fields: ", fields, end= '\n\n')
+    # Turn off printing
+    if args.aPrint == True:
         turnOffPrint() # turn off printing
+        print('Printing done...\n\n')
     
 ################################################################
 
@@ -162,7 +185,7 @@ def attackFiles(lst:list):
                         fp.write(eyewitness) 
                         np.write(niktoitem)
                         nm.write(nmapitem)
-    print("files created...")
+    print("files created...\n\n")
 
 #####################################################################
 
@@ -263,13 +286,13 @@ def merge(lst:list, fil:str)-> list:
     'Merge two different csv files together.'
     fields, lst2 = openFile(fil) # go get the second file and return a list
     lst.extend(lst2) # https://www.w3schools.com/python/gloss_python_join_lists.asp
-    print('Merged: ', fil)
+    print(f'Merging: {args.filename} and {fil} into a new file called new-merged-csv.csv')
     ## Save the merged file into a new file so we don't destroy original.
     with open('new-merged-csv.csv', 'w', newline='') as f: # 
         write = csv.writer(f) # https://stackoverflow.com/questions/3348460/csv-file-written-with-python-has-blank-lines-between-each-row
         write.writerow(fields) #https://www.geeksforgeeks.org/python-save-list-to-csv/
         write.writerows(lst)
-    print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.')
+    print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.\n\n')
     
 ##############################################################
 
@@ -339,7 +362,7 @@ def topTenIP(lst:list, amt) -> list:
             if rows[4] == ip[0]:
                 lst.append(rows)
     lst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
-    printList(fields, lst)
+    printList(fields, lst, calcLst)
     print(f'Top systems most risky are in order: ')
     for ip in calcLst:
         print('IP: {:<16} : CVE Risk Value: {:.2f}'.format(ip[0], ip[1]))
@@ -364,45 +387,84 @@ def searchExploit(lst:list) -> None:
     exploitFile.close()
 
 #####################################################
+def nameSummary(lst:list) -> list:
+    "Build and print a list of all vulnerabilities so a quick review can be done."
+    newLst = []
+    # grab list and start sorting out names into a new list
+    for rows in lst:
+        if rows[7] not in newLst:
+            newLst.append(rows[7])
+    newLst.sort(key= lambda x : x)
+    for row in newLst:
+        print('[+]', row)
+    print('--------------------------------------------------------')
+    print('[=] Field to search = Name')
+    print("\n\n")
+
+#####################################################
 # main function
 def main():
     #
     #################################################
     # grab the file, and start gathering information
     fields, rows = openFile(args.filename) # Grab the data from the csv, and return fields + rows in a list
+    # go get what we are looking for...
+    lst, ipLst = findResults(fields, rows, args.search, args.field)  # make into a future switch  -C for Critical -H for High
+    # abort if something goes unexpected and returns nothing.
+    if len(lst) == 0: 
+        print('\nSearch returned nothing, check your search and try again.\n') 
+        sys.exit()
     ################################################
     # Do things based upon arg switches
-    if args.topTen == False:
-        # go get what we are looking for...
-        lst = findResults(fields, rows, args.search, args.field)  # make into a future switch  -C for Critical -H for High
-        printList(fields, lst) # print fields, and findings.
-    else:
+
+    # create a top X report
+    if args.topTen != 0:
         print('\n\nGenerating Top list')
         topTenIP(rows, args.topTen)
-    #  Print footer
-    print("\nSearchable Fields: ", fields, end= '\n\n') # print seperator
-    print("Search for all records:  python kitchensink.py test.csv -s . -f Solution \n\n ")
-
+        sys.exit()
+    # create a summary and print it
+    if args.summary == True:
+        nameSummary(lst)
+        sys.exit()
+    # create a bar graph of the results
     if args.cGraphics == True:
         print('Creating graphics...')
         a, b, c, d, e = calcRisk(lst, 'all') # I won't always use e = None
         riskGraph(a,b,c,d)
-    elif args.cAttack == True:
-        print('Generating files.')
-        attackFiles(lst)
-    elif args.cMerge != None:
+        sys.exit()
+    # merge two files together
+    if args.cMerge != None:
         print('Merging documents')
         merge(lst, args.cMerge)
-    elif args.eXploit == True:
+        sys.exit()
+    # create attack files for nikto, nmap and eyewitness
+    if args.cAttack == True:
+        print('Generating files.')
+        attackFiles(lst)
+        sys.exit()
+    # find exploits through searchsploit
+    if args.eXploit == True:
         print('Searching for exploits, check exploit.txt for findings')
         searchExploit(lst)
-    elif (args.webScrap == True) and (args.download != ""):
+        sys.exit()
+    # web scraping robots and other text files.
+    if (args.webScrap == True) and (args.download != ""):
         print('running. file download')
         requestPage(lst, args.download)
-    elif (args.search != '.') and (args.query == True):
+    # printing section
+    if (args.search != '.') and (args.query == True):
         pQuery(lst)
-    elif args.sBar == True and args.topTen == False:
+        sys.exit()
+    elif(args.search == '.') and (args.query == True):
+        print('\nYour query failed.  You need to narrow the search to a single name field item to inspect the details.\n\n')
+        sys.exit()
+    # stacked bar section 
+    if args.sBar == True and args.topTen == False:
         print('You need to perform a TOP TEN type search [-t 10] to get a stacked barchart.')
+        sys.exit()
+
+    # otherwise always print this list, either to a file or to the screen.
+    printList(fields, lst, ipLst) # print fields, and findings.
     ###############################################
 
 # dunder start
