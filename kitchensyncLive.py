@@ -12,6 +12,7 @@
 # BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
 
 # libraries                             # anything with a *** are libraries that were outside of class.
+import os                               # os access
 import sys                              # printing to a file
 import csv                              # read csv files
 import re                               # search expressions
@@ -26,7 +27,7 @@ from tqdm import tqdm                   # progress bar for longer processes ***
 parser = argparse.ArgumentParser(
         prog='kitchensink.py', 
         description='This program is a Nessus Pro CSV Parser.',
-        epilog='Compiled for Python 3.9. The libraries needed are: sys, csv, re, argparse, requests, tqdm, matplotlib, searchsploit ' +
+        epilog='Compiled for Python 3.9. The libraries needed are: os, sys, csv, re, argparse, requests, tqdm, matplotlib, searchsploit ' +
         '[https://github.com/andreafioraldi/cve_searchsploit]')
 
 parser.add_argument("filename", type=str, help='The [filename] of CSV to read and display.  These are the results you want.')
@@ -174,18 +175,31 @@ def pQuery(lst:list) -> None:
 
 def attackFiles(lst:list):
     "Gather Eyewitness data / nikto data and create attack files"
-    with open("eyewitness.txt", 'w') as fp:
-        with open("nikto.sh", 'w') as np:
-            with open("http-nmap.sh", 'w') as nm:       # open files so we can write attack files.
-                for rows in lst:                         # write all at once.
-                    if re.search("HTTP", rows[7]):
+    # look for directories and if not there, make them.
+    niktodir = 'nikto'
+    eyewitnessdir = 'eyewitness'
+
+    # create directories for the data.
+    for i in (niktodir, eyewitnessdir):
+        isExist = os.path.exists(i)
+        if not isExist:
+            os.makedirs(i)
+
+    with open("eyewitness/eyewitness.txt", 'w') as fp:
+        with open("nikto/nikto.sh", 'w') as np:
+           # open files so we can write attack files.
+                for rows in lst:  # write all at once.
+                    if re.search("HTTP Server", rows[7]):
                         eyewitness = "http://" + rows[4] + ":" + rows[6] + "\n"
                         niktoitem = "nikto -h " + rows[4] + ":" + rows[6] + " -o " + rows[4] + "-" + rows[6] + ".txt" + "\n"
-                        nmapitem = "nmap" + ' -sV' + ' -sC ' + rows[4] + ' --script=http*' + ' -oA ' + rows[4] + "-nmap" + "\n"
                         fp.write(eyewitness) 
                         np.write(niktoitem)
-                        nm.write(nmapitem)
+    # print user message
     print("files created...\n\n")
+    print('Go into each directory, and execute the files using normal sh command structure, or use the underlying scripts [eyewitness].')
+    print('Run each .sh file as a job task in Linux')
+    print('[ nohup sh nikto.sh & ] then watch the nohup.log file for details. ')
+    print('Run eyewitness using [ eyewitness -f eyewitness.txt ]')
 
 #####################################################################
 
@@ -457,6 +471,10 @@ def main():
         sys.exit()
     elif(args.search == '.') and (args.query == True):
         print('\nYour query failed.  You need to narrow the search to a single name field item to inspect the details.\n\n')
+        sys.exit()
+    if args.iPrint == True:
+        print('\nPrinting your IP data to a file.')
+        printIP(lst)
         sys.exit()
     # stacked bar section 
     if args.sBar == True and args.topTen == False:
