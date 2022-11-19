@@ -9,36 +9,42 @@
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
 # data from Tenable Nessus CSV files.
 
-# libraries                         # anything with a *** are libraries that were outside of class.
-import os
-import sys                          # printing to a file
-import csv                          # read csv files
-import re                           # search expressions
-import argparse                     # commandline argument parser ***
-import requests                     # grab robots.txt and other text, html files.
-from tqdm import tqdm               # progress bar for longer processes ***
+# BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
 
-                                  # use searchsploit library ***
-                                    # https://github.com/andreafioraldi/cve_searchsploit
+# libraries                             # anything with a *** are libraries that were outside of class.
+import os                               # os access
+import sys                              # printing to a file
+import csv                              # read csv files
+import re                               # search expressions
+import argparse                         # commandline argument parser ***
+import requests                         # grab robots.txt and other text, html files.
+from tqdm import tqdm                   # progress bar for longer processes ***
+
 # Argument Parser
 # This sets up our arguments and help/options for the user
 # discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
-parser = argparse.ArgumentParser(description='Options')
-parser.add_argument("filename", type=str, help='filename of CSV to read')
-parser.add_argument('-b', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a TOPTEN type search')
-parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically additional attack files and store in all output formats.')
-parser.add_argument('-d', '--download', type=str, default='robots.txt', help='filename to name file after its been downloaded [ex. robots.txt].  Text file only.')
-parser.add_argument('-f', '--field', type=str, default='host', help='field to search for the searchterm = Risk')
-parser.add_argument('-g', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks.')
-parser.add_argument('-i', '--iPrint', action ='store_true', default=False, help='Print only IP addresses to a file, must be used with -p argument too')
-parser.add_argument('-m', '--cMerge', type=str, help='Identify a second file to merge with the core file, and both files data will be merged.')
-parser.add_argument('-p', '--aPrint', action='store_true', default=False, help='Print output to a file')
-parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard. It must be a specific search.')
-parser.add_argument('-s', '--search', type=str, default='.', help='search term to use = Critical.  [ a period . is a wildcard for all]')
-parser.add_argument('-sum', '--summary', action='store_true', default=False, help='Summarize the listing removing duplicates')
-parser.add_argument('-t', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks')
-parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='Scrap to a file. Example robots.txt')
-parser.add_argument('-x', '--eXploit', action='store_true', default=False, help='Run SearchSploit to find an exploit based upon a list of CVEs')
+
+parser = argparse.ArgumentParser(
+        prog='kitchensink.py', 
+        description='This program is a Nessus Pro CSV Parser.',
+        epilog='Compiled for Python 3.9. The libraries needed are: os, sys, csv, re, argparse, requests, tqdm, matplotlib, searchsploit ' +
+        '[https://github.com/andreafioraldi/cve_searchsploit]')
+
+parser.add_argument("filename", type=str, help='The [filename] of CSV to read and display.  These are the results you want.')
+parser.add_argument('-bar', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a TOPTEN type search only')
+parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically create attack files and store in all output formats.')
+parser.add_argument('-download', '--download', type=str, default='robots.txt', help='Download a file, and list the filename to name the file after its been downloaded [ex. -d robots.txt].  Text file only.')
+parser.add_argument('-f', '--field', type=str, default='host', help='The field to search for in the data set [-s Risk]')
+parser.add_argument('-graph', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks for any search.  Run a search and use [-g] at the end.')
+parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print a file of the IP addresses of a search.  Run a search and put [-p] at the end')
+parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
+parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
+parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
+parser.add_argument('-s', '--search', type=str, default='.', help='search term to use [ -s Critical].  [ a period . is a wildcard for all]')
+parser.add_argument('-sum', '--summary', type=str,  default=False, help='List all types of vulnability names discovered.  This is a simple list to aid in searching data.  Use: [ -sum Name ]')
+parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
+parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='WebScrape to a file. Example [robots.txt]')
+parser.add_argument('-x', '--eXploit', action='store_true', default=False, help='Run SearchSploit to find an exploit based upon a list of CVEs searched.')
 #args = parser.parse_args()
 
 # comment these out when not debugging.
@@ -58,7 +64,6 @@ topTen = False
 webScrap = False
 eXploit = False
 sBar = False
-
 
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
