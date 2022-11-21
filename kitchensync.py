@@ -1,13 +1,15 @@
-# kitchensync.py
+
 # Author: Jerry Craft
 # October 21, 2022
 #
-# KitchenSink.py -- Everything and the kitchen sink for Nessus files
-# This program is an all around clean up tool I am designing to help me with my 
+# KitchenSink.py -- Everything and the kitchen sink for Nessus files.
+
+# This program is an all around clean up tool I am designing to help me with my
 # penetration testing problems.  This tool is surrounded around the idea that Tenable Nessus Pro
 # while doing a good job at vunlerability scanning, fails to provide me with reasonable reporting
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
-# data from Tenable Nessus CSV files.
+# data from Tenable Nessus CSV files.  This tool will keep me in the console so I can find vulnerabilities
+# and exploit them from the same console.
 
 # BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
 
@@ -25,7 +27,7 @@ from tqdm import tqdm                   # progress bar for longer processes ***
 # discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
 
 parser = argparse.ArgumentParser(
-        prog='kitchensink.py', 
+        prog='kitchensink.py',
         description='This program is a Nessus Pro CSV Parser.',
         epilog='Compiled for Python 3.9. The libraries needed are: os, sys, csv, re, argparse, requests, tqdm, matplotlib, searchsploit ' +
         '[https://github.com/andreafioraldi/cve_searchsploit]')
@@ -36,6 +38,7 @@ parser.add_argument('-c', '--cAttack', action='store_true', default=False, help=
 parser.add_argument('-download', '--download', type=str, default='robots.txt', help='Download a file, and list the filename to name the file after its been downloaded [ex. -d robots.txt].  Text file only.')
 parser.add_argument('-f', '--field', type=str, default='host', help='The field to search for in the data set [-s Risk]')
 parser.add_argument('-graph', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks for any search.  Run a search and use [-g] at the end.')
+parser.add_argument('-hbar', '--hBar', action='store_true', default=False, help='Generate a horizontal stacked barchart on the results of a TOPTEN type search only')
 parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print a file of the IP addresses of a search.  Run a search and put [-p] at the end')
 parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
 parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
@@ -48,7 +51,7 @@ parser.add_argument('-x', '--eXploit', action='store_true', default=False, help=
 #args = parser.parse_args()
 
 # comment these out when not debugging.
-filename = 'home.csv' 
+filename = 'test.csv' 
 aCtion = False
 cAttack = False
 download = None
@@ -60,10 +63,11 @@ aPrint = False
 query = False
 search = '.'
 summary = False
-topTen = False
+topTen = 10
 webScrap = False
 eXploit = False
 sBar = False
+hBar = True
 
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
@@ -73,12 +77,11 @@ original_stdout = sys.stdout # grab a copy of standard out now before we do any 
 def openFile(filename:str) -> list:
     "Open a nessus.csv file for fields, and rows."
     try: # open our file.
-        with open(filename, 'r') as csvfile:       
+        with open(filename, 'r') as csvfile:
             # open the file and grab header from csv
             csvreader = csv.reader(csvfile)
             fields = next(csvreader)
-            rows = [row for row in csvreader] 
-
+            rows = [row for row in csvreader]
     # error handling for file mishaps.
     except csv.Error as err:
         print(f'\nError in reading the CSV file.  Check your file.\n\n')
@@ -90,76 +93,80 @@ def openFile(filename:str) -> list:
 
 def findFields(fields:list, search:str) -> int:
     "Find the fields we are searching."
-    
+
     for field in fields:
         if (search.lower() == field.lower()) or re.search(search.lower(), field.lower()):
-            rname = fields.index(field)
-    
+            index = fields.index(field)
+
     # Did something come up during the field search.
-    if rname == 0:
+    if index == 0:
         print("No field found, exception found.")
         sys.exit()
-    return rname
+    return index
 
+############################################################
+def rowInRows(lst:list, index:int) -> list:
+    "A basic function to build a list based upon an index/value"
+    newLst = []
+    for rows in lst:
+        if rows[index] not in newLst:
+            newLst.append(rows[index])
+    # return the new list we found based upon our search
+    return newLst
 ############################################################
 
 def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
     "universal field search feature, tell me the field, and the string, and I will find it"
-    readout = [] # this is the results from the search.
+    result = [] # this is the results from the search.
     ipLst = [] # this is our IP list for the quantity figures.
 
     try: # check for a valid field for our search.
         # search for our field and return the index
-        rname = findFields(fields, search)
-            
-        # build list for our readout [List Comprehension decision for experiment]
-        readout = [rows for rows in lst
-                    if (rows[rname].lower() == fcat.lower()) or (re.search(fcat.lower(), rows[rname].lower()))]
+        index = findFields(fields, search)
+
+        # build list for our result [List Comprehension decision for experiment]
+        result = [rows for rows in lst
+                    if (rows[index].lower() == fcat.lower()) or (re.search(fcat.lower(), rows[index].lower()))]
 
                # sort key lambda JDP and https://blogboard.io/blog/knowledge/python-sorted-lambda/
-        readout.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
-
+        result.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
         # gather up the ip addresses for our count
-        for rows in readout:
-            if rows[4] not in ipLst:
-                ipLst.append(rows[4])
+        ipLst = rowInRows(lst, 4)
 
         # raise error if nothing is returnable.
-        if len(readout) == 0:
+        if len(result) == 0:
             raise ValueError
 
     # error handling for invalid searches.
     except BaseException as err:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
 
-    return readout, ipLst
+    return result, ipLst
 #############################################################
 
 def printIP(lst)-> None:
     "Print a file of IP addresses to be used with others"
     uniqueList = []
     # open our file for printing.
-    printfile = open('ip-address-output.txt', 'w') 
+    printfile = open('ip-address-output.txt', 'w')
     # add unique ip addresses to a new list
-    for rows in lst:
-            if rows[4] not in uniqueList:
-                uniqueList.append(rows[4])
+    uniqueList = rowInRows(lst, 4)
     # sort the new list
     uniqueList.sort()
     # print IP addresses into a file.
     for item in uniqueList:
         print('{:<15s} '.format(item), file= printfile)
-
+    # close printfile
     printfile.close()
     print('IP addresses printed...')
 #############################################################
 
 def printList(fields:list, lst:list, ipLst) -> None:
-    "Handle the printing of lists by using column format printing" 
+    "Handle the printing of lists by using column format printing"
     # Turn on printing if necessary
     if aPrint == True:
         print('Printing to file: sink-output.txt')
-        turnOnPrint('sink-output.txt') 
+        turnOnPrint('sink-output.txt')
 
     # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
     for rows in lst:
@@ -178,7 +185,7 @@ def printList(fields:list, lst:list, ipLst) -> None:
     if aPrint == True:
         turnOffPrint() # turn off printing
         print('Printing done...\n\n')
-    
+
 ################################################################
 
 def pQuery(lst:list) -> None:
@@ -194,7 +201,9 @@ def pQuery(lst:list) -> None:
         if rows[6] not in portLst:
             portLst.append(rows[6])
 
-    # print 1 record of what the name info, and add all the IP's affected by that issue.
+    # print the last record of the name info, and add all the IP's/ports affected by that issue.
+    # I don't want a scrolling screen of data, rather just a single example, 
+    # thus the indenting is on purpose
     print('-------------------------------------------------------------------')
     print(f'[+] Name: {rows[7]}')
     print(f'[+] Ports        : ', portLst)
@@ -210,7 +219,7 @@ def pQuery(lst:list) -> None:
     print('-------------------------------------------------------------------')
     print(f'[+] IP Addresses :', ipLst)
     print('\n\n\n')
-    
+
 ################################################################
 
 def attackFiles(lst:list) -> None:
@@ -233,7 +242,7 @@ def attackFiles(lst:list) -> None:
                     if re.search("HTTP Server", rows[7]):
                         eyewitness = "http://" + rows[4] + ":" + rows[6] + "\n"
                         niktoitem = "nikto -h " + rows[4] + ":" + rows[6] + " -o " + rows[4] + "-" + rows[6] + ".txt" + "\n"
-                        fp.write(eyewitness) 
+                        fp.write(eyewitness)
                         np.write(niktoitem)
 
     # print user message
@@ -246,7 +255,7 @@ def attackFiles(lst:list) -> None:
 #####################################################################
 
 def calcRisk(lst:list, item:str) -> int:
-    """ Generate risk figures for detailed data points """    
+    """ Generate risk figures for detailed data points """
     # create counters
     ccounter = 0
     hcounter = 0
@@ -258,7 +267,7 @@ def calcRisk(lst:list, item:str) -> int:
     # build a list for the plot graph [LC]
     if item != 'all':
         newLst = [rows for rows in lst if (rows[4] == item)]
-    
+
     # if plot, do first, if plot do last.
     if item != 'all':
         for rows in newLst: # calc special list
@@ -274,7 +283,7 @@ def calcRisk(lst:list, item:str) -> int:
             mcounter += rows[3].count('Medium')
             lcounter += rows[3].count('Low')
             ncounter += rows[3].count('None')
-            
+
     return ccounter, hcounter, mcounter, lcounter, ncounter
 #############################################################
 
@@ -289,11 +298,11 @@ def riskGraph(crit:int,high:int,med:int,low:int) -> None:
     keys = ['Critical:' + str(crit), 'High:' + str(high), 'Medium:' + str(med), 'Low:' + str(low)]
     values = [crit, high, med, low]
     answer = "Total Risks Found: " + str(crit + high + med + low)
-    
+
     # setup color values
     # RGB from W3Schools: https://www.w3schools.com/python/matplotlib_bars.asp
     c = ['#cc0000', '#ff8300', '#ffcf00', '#0000d4']
-    
+
     # plot graph
     plt.bar(keys, values, align='center', color=c) # build chart
     plt.xticks(range(len(values)), keys)
@@ -329,9 +338,9 @@ def requestPage(lst:list, req:str) -> None:
 
 def turnOnPrint(fil:str) -> None:
     "Turn on Console Prints"
-    # if were printing then set stdout to a file. 
+    # if were printing then set stdout to a file.
     # (https://www.delftstack.com/howto/python/python-output-to-file/)
-    
+
     original_stdout = sys.stdout  # save original stdout
     sys.stdout = open(fil, 'w') # write file
 #########################################################
@@ -352,17 +361,48 @@ def merge(lst:list, fil:str)-> None:
     print(f'Merging: {filename} and {fil} into a new file called new-merged-csv.csv')
 
     ## Save the merged file into a new file so we don't destroy original.
-    with open('new-merged-csv.csv', 'w', newline='') as f: # 
+    with open('new-merged-csv.csv', 'w', newline='') as f: #
         write = csv.writer(f) # https://stackoverflow.com/questions/3348460/csv-file-written-with-python-has-blank-lines-between-each-row
         write.writerow(fields) #https://www.geeksforgeeks.org/python-save-list-to-csv/
         write.writerows(lst)
     print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.\n\n')
-    
+
 ##############################################################
 
 def stakBar(lst:list) -> None:
     "Generate a stacked bar chart to help understand results"
     import matplotlib.pyplot as plt
+    crit = 0
+    high = 0
+    med = 0
+    low = 0
+    nan = 0
+    newLst = []
+    # run through our list, and build our graph.
+    for rows in lst:
+        if rows[4] not in newLst:
+            # if IP not found in newLst
+            crit,high,med,low,nan = calcRisk(lst, rows[4]) # calc risk
+            # build the bar
+            plt.bar(rows[4], low, color='#0000d4')
+            plt.bar(rows[4], med, bottom=low, color='#ffcf00')
+            plt.bar(rows[4], high, bottom=low+med, color='#ff8300')
+            plt.bar(rows[4], crit, bottom=low+med+high, color='#cc0000')
+            # append ip to new list so we don't do it again.
+            newLst.append(rows[4])
+            # end when were done
+    plt.xlabel("IP Addresses")
+    plt.ylabel("Risk")
+    plt.legend(['Low', 'Medium', 'High', 'Critical'])
+    plt.title("Top Systems by Risk")
+    plt.show()
+
+###################################################################
+
+def horiBar(lst:list) -> None:
+    " Generate a horizonal stacked bar"
+    # include here to avoid making the graph text appear
+    from matplotlib import pyplot as plt
     crit = 0
     high = 0
     med = 0
@@ -375,21 +415,17 @@ def stakBar(lst:list) -> None:
         if rows[4] not in newLst:
             # if IP not found in newLst
             crit,high,med,low,nan = calcRisk(lst, rows[4]) # calc risk
-
-            # build the bar
-            plt.bar(rows[4], low, color='#0000d4')
-            plt.bar(rows[4], med, bottom=low, color='#ffcf00')
-            plt.bar(rows[4], high, bottom=low+med, color='#ff8300')
-            plt.bar(rows[4], crit, bottom=low+med+high, color='#cc0000')
-
-            # append ip to new list so we don't do it again.
+            # plot each bar
+            plt.barh(rows[4], low, color='#0000d4', align='center')
+            plt.barh(rows[4], med, color='#ffcf00', align='center')
+            plt.barh(rows[4], high, color='#ff8300', align='center')
+            plt.barh(rows[4], crit, color='#cc0000', align='center')
             newLst.append(rows[4])
-            # end when were done
-
-    plt.xlabel("IP Addresses")
-    plt.ylabel("Risk")
-    plt.legend(['Low', 'Medium', 'High', 'Critical'])
+    #plt.rcParams["figure.figsize"] = [7.50, 3.50]
+    #plt.rcParams["figure.autolayout"] = True
+    plt.legend( ["Low", "Medium", "High", "Critical"], title="Risk Chart", loc="upper right")
     plt.title("Top Systems by Risk")
+
     plt.show()
 
 ###################################################################
@@ -401,12 +437,8 @@ def topTenIP(lst:list, amt) -> list:
     finalLst = []
     calcLst = []
     sumRisk = 0
-    
     # get a list of host addresses to begin
-    for rows in lst:
-        if rows[4] not in topIP:
-            topIP.append(rows[4])
-
+    topIP = rowInRows(lst, 4)
     # now get a list of all vulnerabilities for these hosts
     fields, rows = openFile(filename)
     #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
@@ -420,28 +452,27 @@ def topTenIP(lst:list, amt) -> list:
                     sumRisk += float(rows[2])
         calcLst.append([ip, sumRisk])
         sumRisk = 0
-
     # sort all by risk value and keep top 10 in a list
     calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
     del(calcLst[amt:]) # got my top 10.
-
     # now get those rows that have all the detail for those IP's.
     lst.clear() # reuse lst.
     # [LC] for find the new results
     lst = [rows for ip in calcLst for rows in finalLst if rows[4] == ip[0]]
-    
     # sort our new list
     lst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
     printList(fields, lst, calcLst)
-
+    
     # print our new summary
     print(f'Top systems most risky are in order: ')
     for ip in calcLst:
         print('IP: {:<16} : CVE Risk Value: {:.2f}'.format(ip[0], ip[1]))
-    
+
     # if we are building a graph, go do it.
     if sBar == True:
         stakBar(lst)
+    if hBar == True:
+        horiBar(lst)
     ####################################################
 
 def searchExploit(lst:list) -> None:
@@ -460,7 +491,7 @@ def searchExploit(lst:list) -> None:
             if rows[1] not in resultLst: # if CVE has already been seen, move on.
                 resultLst.append(rows[1]) # add to list and print
                 print(f'CVE: {rows[1]} and Exploit: ', cs.edbid_from_cve(rows[1]), file = exploitFile)
-    
+
     # Close me.
     exploitFile.close()
 
@@ -468,22 +499,17 @@ def searchExploit(lst:list) -> None:
 def nameSummary(fields:list, lst:list, search:str) -> None:
     "Build and print a list of all vulnerabilities so a quick review can be done."
     newLst = []
-    rname = findFields(fields, search)
+    index = findFields(fields, search)
 
     try:
-        # # grab list and start sorting out names into a new list
-        for rows in lst:
-            if rows[rname] not in newLst:
-                newLst.append(rows[rname])
-
-        #newLst = [rows[rname] for rows in lst if rows[rname] not in newLst]
-
+        # # grab list and start sorting out names into a new list        
+        newLst = rowInRows(lst, index)
         # sort my list and print it.
         newLst.sort(key= lambda x : x)
         for row in newLst:
             print('[+]', row)
         print('--------------------------------------------------------')
-        print('[=] Field to search = ', fields[rname])
+        print('[=] Field to search = ', fields[index])
         print('[=] Total number of records: ', len(newLst))
         print("\nSearchable Fields: ", fields, end= '\n\n')
         print("\n\n")
@@ -502,8 +528,8 @@ def main():
     # go get what we are looking for...
     lst, ipLst = findResults(fields, rows, search, field)  # make into a future switch  -C for Critical -H for High
     # abort if something goes unexpected and returns nothing.
-    if len(lst) == 0: 
-        print('\nSearch returned nothing, check your search and try again.\n') 
+    if len(lst) == 0:
+        print('\nSearch returned nothing, check your search and try again.\n')
         sys.exit()
     ################################################
 
@@ -554,11 +580,10 @@ def main():
         print('\nPrinting your IP data to a file.')
         printIP(lst)
         sys.exit()
-    # stacked bar section 
+    # stacked bar section
     if sBar == True and topTen == False:
         print('You need to perform a TOP TEN type search [-t 10] to get a stacked barchart.')
         sys.exit()
-
     # otherwise always print this list, either to a file or to the screen.
     printList(fields, lst, ipLst) # print fields, and findings.
     ###############################################
