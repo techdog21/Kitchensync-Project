@@ -63,11 +63,13 @@ aPrint = False
 query = False
 search = '.'
 summary = False
-topTen = 10
+topTen = 50
 webScrap = False
 eXploit = False
 sBar = False
 hBar = True
+lUsers = None
+
 
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
@@ -144,8 +146,9 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
     return result, ipLst
 #############################################################
 
-def printIP(lst)-> None:
-    "Print a file of IP addresses to be used with others"
+#############################################################
+def printIP(lst:list)-> None:
+    "Print a file "
     uniqueList = []
     # open our file for printing.
     printfile = open('ip-address-output.txt', 'w')
@@ -403,30 +406,30 @@ def horiBar(lst:list) -> None:
     " Generate a horizonal stacked bar"
     # include here to avoid making the graph text appear
     from matplotlib import pyplot as plt
-    crit = 0
-    high = 0
-    med = 0
-    low = 0
-    nan = 0
-    newLst = []
 
     # run through our list, and build our graph.
     for rows in lst:
-        if rows[4] not in newLst:
-            # if IP not found in newLst
-            crit,high,med,low,nan = calcRisk(lst, rows[4]) # calc risk
-            # plot each bar
-            plt.barh(rows[4], low, color='#0000d4', align='center')
-            plt.barh(rows[4], med, color='#ffcf00', align='center')
-            plt.barh(rows[4], high, color='#ff8300', align='center')
-            plt.barh(rows[4], crit, color='#cc0000', align='center')
-            newLst.append(rows[4])
-    #plt.rcParams["figure.figsize"] = [7.50, 3.50]
-    #plt.rcParams["figure.autolayout"] = True
-    plt.legend( ["Low", "Medium", "High", "Critical"], title="Risk Chart", loc="upper right")
+        plt.barh(rows[0], rows[1], align='center')
     plt.title("Top Systems by Risk")
 
     plt.show()
+
+###################################################################
+def riskCalc(ipLst:list, finalLst:list) -> list:
+    calcLst = []
+    sumRisk = 0
+        # now calculate up all the risks for each host to get a top 10
+    for ip in tqdm(ipLst, desc='Calc List:'): # run our progressbar so we can see console movement.
+        for rows in finalLst:
+            if ip in rows:
+                if rows[2] != "":
+                    sumRisk += float(rows[2])
+        calcLst.append([ip, sumRisk])
+        sumRisk = 0
+    # sort all by risk value and keep top 10 in a list
+    calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
+
+    return calcLst
 
 ###################################################################
 
@@ -436,7 +439,7 @@ def topTenIP(lst:list, amt) -> list:
     topIP = []
     finalLst = []
     calcLst = []
-    sumRisk = 0
+    
     # get a list of host addresses to begin
     topIP = rowInRows(lst, 4)
     # now get a list of all vulnerabilities for these hosts
@@ -444,16 +447,8 @@ def topTenIP(lst:list, amt) -> list:
     #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
     finalLst = [row for ip in tqdm(topIP, desc="Pull List:") for row in rows if ip == row[4]]
 
-    # now calculate up all the risks for each host to get a top 10
-    for ip in tqdm(topIP, desc='Calc List:'): # run our progressbar so we can see console movement.
-        for rows in finalLst:
-            if ip in rows:
-                if rows[2] != "":
-                    sumRisk += float(rows[2])
-        calcLst.append([ip, sumRisk])
-        sumRisk = 0
-    # sort all by risk value and keep top 10 in a list
-    calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
+    calcLst = riskCalc(topIP, finalLst)
+
     del(calcLst[amt:]) # got my top 10.
     # now get those rows that have all the detail for those IP's.
     lst.clear() # reuse lst.
@@ -472,7 +467,7 @@ def topTenIP(lst:list, amt) -> list:
     if sBar == True:
         stakBar(lst)
     if hBar == True:
-        horiBar(lst)
+        horiBar(calcLst)
     ####################################################
 
 def searchExploit(lst:list) -> None:
@@ -517,6 +512,26 @@ def nameSummary(fields:list, lst:list, search:str) -> None:
     # error handling for invalid searches.
     except BaseException as err:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
+
+#####################################################
+def localUsers(fields:list, lst:list, fcat:str) -> None:
+    "A module to review the lows for disabled users"
+    mainSP = []
+    # grab a list of systems that have the synopsis field for users
+    newLst, ipLst = findResults(fields, lst, fcat, 'name',) 
+    synopLst = rowInRows(newLst, 12)
+    for rows in newLst:
+        mainSP = rows[12].split('\n')
+        for row in mainSP:
+            if re.search('^  - ', row) or re.search('^- ', row):
+                print(f'IP Address {rows[4]} {row}')
+    
+    print("\n\nSample Search Strings")
+    print('SMB Use Host SID to Enumerate Local Users')
+    print("Microsoft Windows SMB Shares Enumeration")
+    print("Microsoft Windows - Local Users Information : Never Changed Password")
+    print("Windows SMB Shares Unprivileged Access")
+    print("Microsoft Windows 'Administrators' Group User List")
 
 #####################################################
 # main function
@@ -584,8 +599,13 @@ def main():
     if sBar == True and topTen == False:
         print('You need to perform a TOP TEN type search [-t 10] to get a stacked barchart.')
         sys.exit()
+    if lUsers != None:
+        localUsers(fields, lst, lUsers)
+        sys.exit()
+    
     # otherwise always print this list, either to a file or to the screen.
     printList(fields, lst, ipLst) # print fields, and findings.
+
     ###############################################
 
 # dunder start
