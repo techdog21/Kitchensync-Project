@@ -113,7 +113,7 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
                # sort key lambda JDP and https://blogboard.io/blog/knowledge/python-sorted-lambda/
         result.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
         # gather up the ip addresses for our count
-        ipLst = rowInRows(lst, 4)
+        ipLst = rowInRows(result, 4)
 
         # raise error if nothing is returnable.
         if len(result) == 0:
@@ -152,9 +152,9 @@ def printList(fields:list, lst:list, ipLst) -> None:
 
     # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
     for rows in lst:
-        print('[+] {:<15s} {:<7s} {:<10} {:<10} {:<15} {:.70}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
+        print('[+] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
     print('---------------------------------------------------------------------------------------------------------')
-    print('[=] {:<15s} {:<7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
+    print('[=] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
     print("\nTotal Entries: ", len(lst)) # print record count
     print("Total IP Addresses in the list: ", len(ipLst))
 
@@ -297,8 +297,11 @@ def riskGraph(crit:int,high:int,med:int,low:int) -> None:
 def get_pages(url) -> str:
     "Grab webpages or robots, etc."
     # grab the web pages, and text.
-    webpage = requests.get(url)
-    webtext = webpage.text
+    try:
+        webpage = requests.get(url)
+        webtext = webpage.text
+    except BaseException as err:
+        print(f'\n\n[-] Error - {err}')
 
     return webtext
 #######################################################
@@ -306,16 +309,16 @@ def get_pages(url) -> str:
 def requestPage(lst:list, req:str) -> None:
     "Function to go thorugh and return different URL's for Soup."
     # send beginning url to loop, and print to file an object
-
+    turnOnPrint(fil + '.txt') # turn on console printing
+    
     for rows in lst:
         url = 'http://' + rows[4] + ':' + rows[6]
         # choose robots or other file
         send = url + "/" + req
         fil = rows[4] + req
-
-        turnOnPrint(fil + '.txt') # turn on console printing
         print(get_pages(send)) # grab a robot file.
-        turnOffPrint() # turn off std print.
+
+    turnOffPrint() # turn off std print.
 #######################################################
 
 def turnOnPrint(fil:str) -> None:
@@ -498,7 +501,7 @@ def localUsers(fields:list, lst:list, fcat:str) -> None:
         mainSP = rows[12].split('\n')
         for row in mainSP:
             if re.search('^  - ', row) or re.search('^- ', row):
-                print(f'{row}')
+                print('{:<60} \t{:<60}'.format(row, rows[4]))
     
     print("\n\n[Sample Search Strings]")
     print('Wildcard is .')
@@ -507,7 +510,6 @@ def localUsers(fields:list, lst:list, fcat:str) -> None:
     print("Microsoft Windows - Local Users Information : Never Changed Password")
     print("Windows SMB Shares Unprivileged Access")
     print("Group User List")
-
     turnOffPrint()
 
 #####################################################
