@@ -40,7 +40,6 @@ parser.add_argument('-f', '--field', type=str, default='host', help='The field t
 parser.add_argument('-graph', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks for any search.  Run a search and use [-g] at the end.')
 parser.add_argument('-hbar', '--hBar', action='store_true', default=False, help='Generate a horizontal stacked barchart on the results of a TOPTEN type search only')
 parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print a file of the IP addresses of a search.  Run a search and put [-p] at the end')
-parser.add_argument('-l', '--lUsers', type=str, help='Display a list of users that Nessus discovered.')
 parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
 parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
 parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
@@ -49,12 +48,33 @@ parser.add_argument('-sum', '--summary', type=str,  default=False, help='List al
 parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='WebScrape to a file. Example [robots.txt]')
 parser.add_argument('-x', '--eXploit', action='store_true', default=False, help='Run SearchSploit to find an exploit based upon a list of CVEs searched.')
-args = parser.parse_args()
+#args = parser.parse_args()
+
+# comment these out when not debugging.
+filename = 'test.csv' 
+aCtion = False
+cAttack = False
+download = None
+field = 'name'
+cGraphics = False
+iPrint = False
+cMerge = None
+aPrint = False
+query = False
+search = '.'
+summary = False
+topTen = 0
+webScrap = False
+eXploit = True
+sBar = False
+hBar = False
+lUsers = None
+
 
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
-
+############################################################
 # open files function
 def openFile(filename:str) -> list:
     "Open a nessus.csv file for fields, and rows."
@@ -64,14 +84,14 @@ def openFile(filename:str) -> list:
             csvreader = csv.reader(csvfile)
             fields = next(csvreader)
             rows = [row for row in csvreader]
-
     # error handling for file mishaps.
-    except BaseException as err:
+    except csv.Error as err:
+        print(f'\nError in reading the CSV file.  Check your file.\n\n')
+    except IOError as err:
         print(f'\nFilename of the Nessus Pro CSV mandatory, file not found.\n\n')
-        sys.exit(1)
 
     return fields, rows
-
+############################################################
 
 def findFields(fields:list, search:str) -> int:
     "Find the fields we are searching."
@@ -84,10 +104,9 @@ def findFields(fields:list, search:str) -> int:
     if index == 0:
         print("No field found, exception found.")
         sys.exit()
-
     return index
 
-
+############################################################
 def rowInRows(lst:list, index:int) -> list:
     "A basic function to build a list based upon an index/value"
     newLst = []
@@ -96,7 +115,7 @@ def rowInRows(lst:list, index:int) -> list:
             newLst.append(rows[index])
     # return the new list we found based upon our search
     return newLst
-
+############################################################
 
 def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
     "universal field search feature, tell me the field, and the string, and I will find it"
@@ -122,60 +141,55 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
 
     # error handling for invalid searches.
     except BaseException as err:
-        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid. (Err: {err})')
+        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
 
     return result, ipLst
+#############################################################
 
-
-def printIP(lst)-> None:
-    "Print a file of IP addresses to be used with others"
+#############################################################
+def printIP(lst:list)-> None:
+    "Print a file "
     uniqueList = []
-    try:
-        # open our file for printing.
-        printfile = open('ip-address-output.txt', 'w')
-        # add unique ip addresses to a new list
-        uniqueList = rowInRows(lst, 4)
-        # sort the new list
-        uniqueList.sort()
-        # print IP addresses into a file.
-        for item in uniqueList:
-            print('{:<15s} '.format(item), file= printfile)
-        # close printfile
-        printfile.close()
-        print('IP addresses printed...')
-
-    except IOError as err:
-        print(f'File Error: {err}')
+    # open our file for printing.
+    printfile = open('ip-address-output.txt', 'w')
+    # add unique ip addresses to a new list
+    uniqueList = rowInRows(lst, 4)
+    # sort the new list
+    uniqueList.sort()
+    # print IP addresses into a file.
+    for item in uniqueList:
+        print('{:<15s} '.format(item), file= printfile)
+    # close printfile
+    printfile.close()
+    print('IP addresses printed...')
+#############################################################
 
 def printList(fields:list, lst:list, ipLst) -> None:
     "Handle the printing of lists by using column format printing"
-    try:
-        # Turn on printing if necessary
-        if args.aPrint == True:
-            print('Printing to file: sink-output.txt')
-            turnOnPrint('sink-output.txt')
+    # Turn on printing if necessary
+    if aPrint == True:
+        print('Printing to file: sink-output.txt')
+        turnOnPrint('sink-output.txt')
 
-        # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
-        for rows in lst:
-            print('[+] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
-        print('---------------------------------------------------------------------------------------------------------')
-        print('[=] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
-        print("\nTotal Entries: ", len(lst)) # print record count
-        print("Total IP Addresses in the list: ", len(ipLst))
+    # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
+    for rows in lst:
+        print('[+] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
+    print('---------------------------------------------------------------------------------------------------------')
+    print('[=] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
+    print("\nTotal Entries: ", len(lst)) # print record count
+    print("Total IP Addresses in the list: ", len(ipLst))
 
-        # make a printout of the core main calcs so you can see if critical/highs exist and should be examined.
-        crit, high, med, low, non = calcRisk(lst, 'all')
-        print(f'Risk Criteria: [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}]\n')
-        print("Searchable Fields: ", fields, end= '\n\n')
+    # make a printout of the core main calcs so you can see if critical/highs exist and should be examined.
+    crit, high, med, low, non = calcRisk(lst, 'all')
+    print(f'Risk Criteria: [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}]\n')
+    print("Searchable Fields: ", fields, end= '\n\n')
 
-        # Turn off printing
-        if args.aPrint == True:
-            turnOffPrint() # turn off printing
-            print('Printing done...\n\n')
+    # Turn off printing
+    if aPrint == True:
+        turnOffPrint() # turn off printing
+        print('Printing done...\n\n')
 
-    except BaseException as err:
-        print(f'Error found: {err}')
-
+################################################################
 
 def pQuery(lst:list) -> None:
     #declare
@@ -209,7 +223,7 @@ def pQuery(lst:list) -> None:
     print(f'[+] IP Addresses :', ipLst)
     print('\n\n\n')
 
-
+################################################################
 
 def attackFiles(lst:list) -> None:
     "Gather Eyewitness data / nikto data and create attack files"
@@ -241,7 +255,7 @@ def attackFiles(lst:list) -> None:
     print('[ nohup sh nikto.sh & ] then watch the nohup.log file for details. ')
     print('Run eyewitness using [ eyewitness -f eyewitness.txt ]')
 
-
+#####################################################################
 
 def calcRisk(lst:list, item:str) -> int:
     """ Generate risk figures for detailed data points """
@@ -274,7 +288,7 @@ def calcRisk(lst:list, item:str) -> int:
             ncounter += rows[3].count('None')
 
     return ccounter, hcounter, mcounter, lcounter, ncounter
-
+#############################################################
 
 def riskGraph(crit:int,high:int,med:int,low:int) -> None:
     "Create a graph using the risk points."
@@ -299,7 +313,7 @@ def riskGraph(crit:int,high:int,med:int,low:int) -> None:
     plt.title("Vulnerabilities by Risk") # make pretty
 
     plt.show()
-
+######################################################
 
 def get_pages(url) -> str:
     "Grab webpages or robots, etc."
@@ -311,7 +325,7 @@ def get_pages(url) -> str:
         print(f'\n\n[-] Error - {err}')
 
     return webtext
-
+#######################################################
 
 def requestPage(lst:list, req:str) -> None:
     "Function to go thorugh and return different URL's for Soup."
@@ -326,7 +340,7 @@ def requestPage(lst:list, req:str) -> None:
         print(get_pages(send)) # grab a robot file.
 
     turnOffPrint() # turn off std print.
-
+#######################################################
 
 def turnOnPrint(fil:str) -> None:
     "Turn on Console Prints"
@@ -335,13 +349,13 @@ def turnOnPrint(fil:str) -> None:
 
     original_stdout = sys.stdout  # save original stdout
     sys.stdout = open(fil, 'w') # write file
-
+#########################################################
 
 def turnOffPrint()-> None:
     "Turn off stdout back to original for Console Print off"
     # set stdout back
     sys.stdout = original_stdout
-
+##########################################################
 
 def merge(lst:list, fil:str)-> None:
     'Merge two different csv files together.'
@@ -350,7 +364,7 @@ def merge(lst:list, fil:str)-> None:
 
     # extend the first list with the second one.
     lst.extend(lst2) # https://www.w3schools.com/python/gloss_python_join_lists.asp
-    print(f'Merging: {args.filename} and {fil} into a new file called new-merged-csv.csv')
+    print(f'Merging: {filename} and {fil} into a new file called new-merged-csv.csv')
 
     ## Save the merged file into a new file so we don't destroy original.
     with open('new-merged-csv.csv', 'w', newline='') as f: #
@@ -359,6 +373,7 @@ def merge(lst:list, fil:str)-> None:
         write.writerows(lst)
     print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.\n\n')
 
+##############################################################
 
 def stakBar(lst:list) -> None:
     "Generate a stacked bar chart to help understand results"
@@ -388,40 +403,26 @@ def stakBar(lst:list) -> None:
     plt.title("Top Systems by Risk")
     plt.show()
 
+###################################################################
 
 def horiBar(lst:list) -> None:
     " Generate a horizonal stacked bar"
     # include here to avoid making the graph text appear
     from matplotlib import pyplot as plt
 
-    hValue = 0
     # run through our list, and build our graph.
     for rows in lst:
         plt.barh(rows[0], rows[1], align='center')
-        if rows[1] > hValue:
-            hValue = rows[1]
-    xTicLst = list(range(0,int(hValue), 50))
     plt.title("Top Systems by Risk")
-    plt.xticks(xTicLst)
+
     plt.show()
 
-
-def topTenIP(lst:list, amt) -> list:
-    "Get the top 10 IP addresses from the lst, and then generate a list for those systems with total risk"
-    # declare
-    topIP = []
-    finalLst = []
+###################################################################
+def riskCalc(ipLst:list, finalLst:list) -> list:
     calcLst = []
     sumRisk = 0
-    # get a list of host addresses to begin
-    topIP = rowInRows(lst, 4)
-    # now get a list of all vulnerabilities for these hosts
-    fields, rows = openFile(args.filename)
-    #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
-    finalLst = [row for ip in tqdm(topIP, desc="Pull List:") for row in rows if ip == row[4]]
-
-    # now calculate up all the risks for each host to get a top 10
-    for ip in tqdm(topIP, desc='Calc List:'): # run our progressbar so we can see console movement.
+        # now calculate up all the risks for each host to get a top 10
+    for ip in tqdm(ipLst, desc='Calc List:'): # run our progressbar so we can see console movement.
         for rows in finalLst:
             if ip in rows:
                 if rows[2] != "":
@@ -430,6 +431,27 @@ def topTenIP(lst:list, amt) -> list:
         sumRisk = 0
     # sort all by risk value and keep top 10 in a list
     calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
+
+    return calcLst
+
+###################################################################
+
+def topTenIP(lst:list, amt) -> list:
+    "Get the top 10 IP addresses from the lst, and then generate a list for those systems with total risk"
+    # declare
+    topIP = []
+    finalLst = []
+    calcLst = []
+    
+    # get a list of host addresses to begin
+    topIP = rowInRows(lst, 4)
+    # now get a list of all vulnerabilities for these hosts
+    fields, rows = openFile(filename)
+    #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
+    finalLst = [row for ip in tqdm(topIP, desc="Pull List:") for row in rows if ip == row[4]]
+
+    calcLst = riskCalc(topIP, finalLst)
+
     del(calcLst[amt:]) # got my top 10.
     # now get those rows that have all the detail for those IP's.
     lst.clear() # reuse lst.
@@ -445,11 +467,11 @@ def topTenIP(lst:list, amt) -> list:
         print('IP: {:<16} : CVE Risk Value: {:.2f}'.format(ip[0], ip[1]))
 
     # if we are building a graph, go do it.
-    if args.sBar == True:
+    if sBar == True:
         stakBar(lst)
-    if args.hBar == True:
+    if hBar == True:
         horiBar(calcLst)
-
+    ####################################################
 
 def searchExploit(lst:list) -> None:
     "Search for exploits using Kali version of SearchSploit"
@@ -474,6 +496,7 @@ def searchExploit(lst:list) -> None:
     # Close me.
     exploitFile.close()
 
+#####################################################
 def nameSummary(fields:list, lst:list, search:str) -> None:
     "Build and print a list of all vulnerabilities so a quick review can be done."
     newLst = []
@@ -496,14 +519,10 @@ def nameSummary(fields:list, lst:list, search:str) -> None:
     except BaseException as err:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
 
-
+#####################################################
 def localUsers(fields:list, lst:list, fcat:str) -> None:
     "A module to review the lows for disabled users"
     mainSP = []
-
-    if args.aPrint == True:
-        turnOnPrint('localusers.txt')
-        print('File localusers.txt printed.')
     # grab a list of systems that have the synopsis field for users
     newLst, ipLst = findResults(fields, lst, fcat, 'name',) 
     synopLst = rowInRows(newLst, 12)
@@ -521,79 +540,79 @@ def localUsers(fields:list, lst:list, fcat:str) -> None:
     print("Windows SMB Shares Unprivileged Access")
     print("Group User List")
     turnOffPrint()
-
-
 #####################################################
 # main function
 def main():
     #
     #################################################
     # grab the file, and start gathering information
-    fields, rows = openFile(args.filename) # Grab the data from the csv, and return fields + rows in a list
+    fields, rows = openFile(filename) # Grab the data from the csv, and return fields + rows in a list
     # go get what we are looking for...
-    lst, ipLst = findResults(fields, rows, args.search, args.field)  # make into a future switch  -C for Critical -H for High
+    lst, ipLst = findResults(fields, rows, search, field)  # make into a future switch  -C for Critical -H for High
     # abort if something goes unexpected and returns nothing.
+    if len(lst) == 0:
+        print('\nSearch returned nothing, check your search and try again.\n')
+        sys.exit()
     ################################################
 
     # Do things based upon arg switches
 
     # create a top X report
-    if args.topTen != 0:
+    if topTen != 0:
         print('\n\nGenerating Top list')
-        topTenIP(rows, args.topTen)
+        topTenIP(rows, topTen)
         sys.exit()
     # create a summary and print it
-    if args.summary != 0:
-        nameSummary(fields, lst, args.summary)
+    if summary != 0:
+        nameSummary(fields, lst, summary)
         sys.exit()
     # create a bar graph of the results
-    if args.cGraphics == True:
+    if cGraphics == True:
         print('Creating graphics...')
         a, b, c, d, e = calcRisk(lst, 'all') # I won't always use e = None
         riskGraph(a,b,c,d)
         sys.exit()
     # merge two files together
-    if args.cMerge != None:
+    if cMerge != None:
         print('Merging documents')
-        merge(lst, args.cMerge)
+        merge(lst, cMerge)
         sys.exit()
     # create attack files for nikto, nmap and eyewitness
-    if args.cAttack == True:
+    if cAttack == True:
         print('Generating files.')
         attackFiles(lst)
         sys.exit()
     # find exploits through searchsploit
-    if args.eXploit == True:
+    if eXploit == True:
         print('Searching for exploits, check exploit.txt for findings')
         searchExploit(lst)
         sys.exit()
     # web scraping robots and other text files.
-    if (args.webScrap == True) and (args.download != ""):
+    if (webScrap == True) and (download != ""):
         print('running. file download')
-        requestPage(lst, args.download)
+        requestPage(lst, download)
     # printing section
-    if (args.search != '.') and (args.query == True):
+    if (search != '.') and (query == True):
         pQuery(lst)
         sys.exit()
-    elif(args.search == '.') and (args.query == True):
+    elif(search == '.') and (query == True):
         print('\nYour query failed.  You need to narrow the search to a single name field item to inspect the details.\n\n')
         sys.exit()
-    if args.iPrint == True:
+    if iPrint == True:
         print('\nPrinting your IP data to a file.')
         printIP(lst)
         sys.exit()
     # stacked bar section
-    if (args.sBar == True) and (args.topTen == False) or (args.hBar == True) and (args.topTen == False):
-        print('\n\nYou need to perform a TOP TEN type search [-t 10] to get a stacked barchart.')
+    if sBar == True and topTen == False:
+        print('You need to perform a TOP TEN type search [-t 10] to get a stacked barchart.')
         sys.exit()
-    if (args.sBar == True) and (args.topTen >= 15):
-        print('\n\nYour Top 10 search cannot be greater than 15 for a stacked bar chart.')
+    if lUsers != None:
+        localUsers(fields, lst, lUsers)
         sys.exit()
-    if args.lUsers !=None :
-        localUsers(fields, lst, args.lUsers)
-        sys.exit()
+    
     # otherwise always print this list, either to a file or to the screen.
     printList(fields, lst, ipLst) # print fields, and findings.
+
     ###############################################
 
 # dunder start
