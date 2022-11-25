@@ -72,7 +72,6 @@ def openFile(filename:str) -> list:
 
     return fields, rows
 
-
 def findFields(fields:list, search:str) -> int:
     "Find the fields we are searching."
 
@@ -122,7 +121,7 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
 
     # error handling for invalid searches.
     except BaseException as err:
-        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid. (Err: {err})')
+        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.')
 
     return result, ipLst
 
@@ -132,16 +131,16 @@ def printIP(lst)-> None:
     uniqueList = []
     try:
         # open our file for printing.
-        printfile = open('ip-address-output.txt', 'w')
+        printFile = open('ip-address-output.txt', 'w')
         # add unique ip addresses to a new list
         uniqueList = rowInRows(lst, 4)
         # sort the new list
         uniqueList.sort()
         # print IP addresses into a file.
         for item in uniqueList:
-            print('{:<15s} '.format(item), file= printfile)
+            print('{:<15s} '.format(item), file= printFile)
         # close printfile
-        printfile.close()
+        printFile.close()
         print('IP addresses printed...')
 
     except IOError as err:
@@ -316,13 +315,15 @@ def get_pages(url) -> str:
 def requestPage(lst:list, req:str) -> None:
     "Function to go thorugh and return different URL's for Soup."
     # send beginning url to loop, and print to file an object
-    turnOnPrint(fil + '.txt') # turn on console printing
+
     
     for rows in lst:
         url = 'http://' + rows[4] + ':' + rows[6]
         # choose robots or other file
         send = url + "/" + req
         fil = rows[4] + req
+        
+        turnOnPrint(fil + '.txt') # turn on console printing
         print(get_pages(send)) # grab a robot file.
 
     turnOffPrint() # turn off std print.
@@ -348,8 +349,8 @@ def merge(lst:list, fil:str)-> None:
     # go get our data to merge.
     fields, lst2 = openFile(fil) # go get the second file and return a list
 
-    # extend the first list with the second one.
-    lst.extend(lst2) # https://www.w3schools.com/python/gloss_python_join_lists.asp
+    # extend the first list with the second one, no dups.
+    lst.extend(y for y in lst2 if y not in lst) #https://www.i2tutorials.com/combining-two-lists-and-removing-duplicates/
     print(f'Merging: {args.filename} and {fil} into a new file called new-merged-csv.csv')
 
     ## Save the merged file into a new file so we don't destroy original.
@@ -541,11 +542,13 @@ def main():
     if args.topTen != 0:
         print('\n\nGenerating Top list')
         topTenIP(rows, args.topTen)
-        sys.exit()
+        if args.cGraphics != True:
+            input('Press any key to end review...')
+            sys.exit()
     # create a summary and print it
     if args.summary != 0:
         nameSummary(fields, lst, args.summary)
-        sys.exit()
+        #sys.exit()
     # create a bar graph of the results
     if args.cGraphics == True:
         print('Creating graphics...')
