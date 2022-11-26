@@ -38,7 +38,6 @@ parser.add_argument('-c', '--cAttack', action='store_true', default=False, help=
 parser.add_argument('-download', '--download', type=str, default='robots.txt', help='Download a file, and list the filename to name the file after its been downloaded [ex. -d robots.txt].  Text file only.')
 parser.add_argument('-f', '--field', type=str, default='host', help='The field to search for in the data set [-s Risk]')
 parser.add_argument('-graph', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks for any search.  Run a search and use [-g] at the end.')
-parser.add_argument('-hbar', '--hBar', action='store_true', default=False, help='Generate a horizontal stacked barchart on the results of a TOPTEN type search only')
 parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print a file of the IP addresses of a search.  Run a search and put [-p] at the end')
 parser.add_argument('-l', '--lUsers', type=str, help='Display a list of users that Nessus discovered.')
 parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
@@ -69,7 +68,6 @@ def openFile(filename:str) -> list:
     except BaseException as err:
         print(f'\nFilename of the Nessus Pro CSV mandatory, file not found.\n\n')
         sys.exit(1)
-
     return fields, rows
 
 def findFields(fields:list, search:str) -> int:
@@ -78,14 +76,11 @@ def findFields(fields:list, search:str) -> int:
     for field in fields:
         if (search.lower() == field.lower()) or re.search(search.lower(), field.lower()):
             index = fields.index(field)
-
     # Did something come up during the field search.
     if index == 0:
         print("No field found, exception found.")
         sys.exit()
-
     return index
-
 
 def rowInRows(lst:list, index:int) -> list:
     "A basic function to build a list based upon an index/value"
@@ -95,7 +90,6 @@ def rowInRows(lst:list, index:int) -> list:
             newLst.append(rows[index])
     # return the new list we found based upon our search
     return newLst
-
 
 def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
     "universal field search feature, tell me the field, and the string, and I will find it"
@@ -150,27 +144,24 @@ def printList(fields:list, lst:list, ipLst) -> None:
     "Handle the printing of lists by using column format printing"
     try:
         # Turn on printing if necessary
-        if args.aPrint == True:
-            print('Printing to file: sink-output.txt')
-            turnOnPrint('sink-output.txt')
+        if args.aPrint == True: turnOnPrint('sink-output.txt')
 
         # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
         for rows in lst:
-            print('[+] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
-        print('---------------------------------------------------------------------------------------------------------')
-        print('[=] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
+            print('[+] {:<30s} {:>7s} {:^10} {:^10} {:<15} {:^4}    {:<.75}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[2], rows[7]))
+        for i in range(1,160): print('-', end='') # print line
+        print('\n[=] {:<30s} {:>7s} {:^10} {:^10} {:^15} {:>.4}    {:<5}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[2], fields[7]))
         print("\nTotal Entries: ", len(lst)) # print record count
         print("Total IP Addresses in the list: ", len(ipLst))
 
         # make a printout of the core main calcs so you can see if critical/highs exist and should be examined.
         crit, high, med, low, non = calcRisk(lst, 'all')
-        print(f'Risk Criteria: [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}]\n')
+        totNone = ((non / len(lst)) * 100)
+        print(f'Risk Criteria: [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}, None Percent: {totNone:.2f}%]\n')
         print("Searchable Fields: ", fields, end= '\n\n')
 
         # Turn off printing
-        if args.aPrint == True:
-            turnOffPrint() # turn off printing
-            print('Printing done...\n\n')
+        if args.aPrint == True: turnOffPrint() # turn off printing
 
     except BaseException as err:
         print(f'Error found: {err}')
@@ -383,29 +374,14 @@ def stakBar(lst:list) -> None:
             # append ip to new list so we don't do it again.
             newLst.append(rows[4])
             # end when were done
+
     plt.xlabel("IP Addresses")
     plt.ylabel("Risk")
     plt.legend(['Low', 'Medium', 'High', 'Critical'])
     plt.title("Top Systems by Risk")
+    plt.plot()
+    plt.xticks(rotation = 45) 
     plt.show()
-
-
-def horiBar(lst:list) -> None:
-    " Generate a horizonal stacked bar"
-    # include here to avoid making the graph text appear
-    from matplotlib import pyplot as plt
-
-    hValue = 0
-    # run through our list, and build our graph.
-    for rows in lst:
-        plt.barh(rows[0], rows[1], align='center')
-        if rows[1] > hValue:
-            hValue = rows[1]
-    xTicLst = list(range(0,int(hValue), 50))
-    plt.title("Top Systems by Risk")
-    plt.xticks(xTicLst)
-    plt.show()
-
 
 def topTenIP(lst:list, amt) -> list:
     "Get the top 10 IP addresses from the lst, and then generate a list for those systems with total risk"
@@ -421,7 +397,7 @@ def topTenIP(lst:list, amt) -> list:
     #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
     finalLst = [row for ip in tqdm(topIP, desc="Pull List:") for row in rows if ip == row[4]]
 
-    # now calculate up all the risks for each host to get a top 10
+    # now calculate up all the risks for each host to get a top X
     for ip in tqdm(topIP, desc='Calc List:'): # run our progressbar so we can see console movement.
         for rows in finalLst:
             if ip in rows:
@@ -429,15 +405,17 @@ def topTenIP(lst:list, amt) -> list:
                     sumRisk += float(rows[2])
         calcLst.append([ip, sumRisk])
         sumRisk = 0
-    # sort all by risk value and keep top 10 in a list
+    # sort all by risk value and keep top X in a list
     calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
-    del(calcLst[amt:]) # got my top 10.
+    del(calcLst[amt:]) # got my top X.
     # now get those rows that have all the detail for those IP's.
+  
     lst.clear() # reuse lst.
     # [LC] for find the new results
     lst = [rows for ip in calcLst for rows in finalLst if rows[4] == ip[0]]
     # sort our new list
     lst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
+  
     printList(fields, lst, calcLst)
     
     # print our new summary
@@ -445,11 +423,13 @@ def topTenIP(lst:list, amt) -> list:
     for ip in calcLst:
         print('IP: {:<16} : CVE Risk Value: {:.2f}'.format(ip[0], ip[1]))
 
-    # if we are building a graph, go do it.
+    # if we are building a graph, find it, and go do it.
     if args.sBar == True:
         stakBar(lst)
-    if args.hBar == True:
-        horiBar(calcLst)
+    if args.cGraphics == True:
+        print('Creating graphics...')
+        a, b, c, d, e = calcRisk(lst, 'all') # I won't always use e = None
+        riskGraph(a,b,c,d)
 
 
 def searchExploit(lst:list) -> None:
@@ -479,7 +459,7 @@ def nameSummary(fields:list, lst:list, search:str) -> None:
     "Build and print a list of all vulnerabilities so a quick review can be done."
     newLst = []
     index = findFields(fields, search)
-
+    if args.aPrint == True: turnOnPrint('name-summary.txt')
     try:
         # # grab list and start sorting out names into a new list        
         newLst = rowInRows(lst, index)
@@ -496,15 +476,14 @@ def nameSummary(fields:list, lst:list, search:str) -> None:
     # error handling for invalid searches.
     except BaseException as err:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
-
+    if args.aPrint == True: turnOffPrint()
 
 def localUsers(fields:list, lst:list, fcat:str) -> None:
     "A module to review the lows for disabled users"
     mainSP = []
 
-    if args.aPrint == True:
-        turnOnPrint('localusers.txt')
-        print('File localusers.txt printed.')
+    if args.aPrint == True: turnOnPrint('localusers.txt')
+        
     # grab a list of systems that have the synopsis field for users
     newLst, ipLst = findResults(fields, lst, fcat, 'name',) 
     synopLst = rowInRows(newLst, 12)
@@ -521,8 +500,7 @@ def localUsers(fields:list, lst:list, fcat:str) -> None:
     print("Microsoft Windows - Local Users Information : Never Changed Password")
     print("Windows SMB Shares Unprivileged Access")
     print("Group User List")
-    turnOffPrint()
-
+    if args.aPrint == True: turnOffPrint()
 
 #####################################################
 # main function
@@ -542,13 +520,13 @@ def main():
     if args.topTen != 0:
         print('\n\nGenerating Top list')
         topTenIP(rows, args.topTen)
-        if args.cGraphics != True:
-            input('Press any key to end review...')
+        if (args.sBar != True) or (args.sBar == True):
+            input('Press Enter to end review...')
             sys.exit()
     # create a summary and print it
     if args.summary != 0:
         nameSummary(fields, lst, args.summary)
-        #sys.exit()
+        sys.exit()
     # create a bar graph of the results
     if args.cGraphics == True:
         print('Creating graphics...')
@@ -586,7 +564,7 @@ def main():
         printIP(lst)
         sys.exit()
     # stacked bar section
-    if (args.sBar == True) and (args.topTen == False) or (args.hBar == True) and (args.topTen == False):
+    if (args.sBar == True) and (args.topTen == False):
         print('\n\nYou need to perform a TOP TEN type search [-t 10] to get a stacked barchart.')
         sys.exit()
     if (args.sBar == True) and (args.topTen >= 15):
@@ -595,7 +573,8 @@ def main():
     if args.lUsers !=None :
         localUsers(fields, lst, args.lUsers)
         sys.exit()
-    # otherwise always print this list, either to a file or to the screen.
+
+    lst, ipLst = findResults(fields, rows, args.search, args.field) 
     printList(fields, lst, ipLst) # print fields, and findings.
     ###############################################
 
