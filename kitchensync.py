@@ -291,7 +291,6 @@ def riskGraph(crit:int,high:int,med:int,low:int) -> None:
 
     plt.show()
 
-
 def get_pages(url) -> str:
     "Grab webpages or robots, etc."
     # grab the web pages, and text.
@@ -303,18 +302,14 @@ def get_pages(url) -> str:
 
     return webtext
 
-
 def requestPage(lst:list, req:str) -> None:
     "Function to go thorugh and return different URL's for Soup."
     # send beginning url to loop, and print to file an object
-
-    
     for rows in lst:
         url = 'http://' + rows[4] + ':' + rows[6]
         # choose robots or other file
         send = url + "/" + req
         fil = rows[4] + req
-        
         turnOnPrint(fil + '.txt') # turn on console printing
         print(get_pages(send)) # grab a robot file.
 
@@ -391,7 +386,7 @@ def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
     calcLst = []
     endLst = []
     sumRisk = 0
-    
+
     #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
     finalLst = [row for ip in ipLst for row in lst if ip == row[4]]
     # now calculate up all the risks for each host to get a top X
@@ -425,12 +420,10 @@ def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
 
 def searchExploit(lst:list) -> None:
     "Search for exploits using Kali version of SearchSploit"
-    # I don't want the cloning message displayed unless we need it.
+    # I want the cloning message displayed unless we need it.
     import cve_searchsploit as cs # load if needed
-    resultLst = []
     executeLst = []
     dedup = []
-    finalDup = []
     # first clone exploitdb in case its not available
     cs.update_db()
 
