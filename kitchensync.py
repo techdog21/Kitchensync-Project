@@ -21,6 +21,7 @@ import re                               # search expressions
 import argparse                         # commandline argument parser ***
 import requests                         # grab robots.txt and other text, html files.
 from tqdm import tqdm                   # progress bar for longer processes ***
+import subprocess                       # execute local processes ***
 
 # Argument Parser
 # This sets up our arguments and help/options for the user
@@ -383,22 +384,18 @@ def stakBar(lst:list) -> None:
     plt.xticks(rotation = 45) 
     plt.show()
 
-def topTenIP(lst:list, amt) -> list:
+def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
     "Get the top 10 IP addresses from the lst, and then generate a list for those systems with total risk"
     # declare
-    topIP = []
     finalLst = []
     calcLst = []
+    endLst = []
     sumRisk = 0
-    # get a list of host addresses to begin
-    topIP = rowInRows(lst, 4)
-    # now get a list of all vulnerabilities for these hosts
-    fields, rows = openFile(args.filename)
+    
     #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
-    finalLst = [row for ip in tqdm(topIP, desc="Pull List:") for row in rows if ip == row[4]]
-
+    finalLst = [row for ip in ipLst for row in lst if ip == row[4]]
     # now calculate up all the risks for each host to get a top X
-    for ip in tqdm(topIP, desc='Calc List:'): # run our progressbar so we can see console movement.
+    for ip in tqdm(ipLst, desc='Creating List:'): # run our progressbar so we can see console movement.
         for rows in finalLst:
             if ip in rows:
                 if rows[2] != "":
@@ -409,15 +406,9 @@ def topTenIP(lst:list, amt) -> list:
     calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
     del(calcLst[amt:]) # got my top X.
     # now get those rows that have all the detail for those IP's.
-  
-    lst.clear() # reuse lst.
-    # [LC] for find the new results
-    lst = [rows for ip in calcLst for rows in finalLst if rows[4] == ip[0]]
-    # sort our new list
-    lst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
-  
-    printList(fields, lst, calcLst)
-    
+    endLst = [rows for ip in calcLst for rows in finalLst if rows[4] == ip[0]]
+    endLst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
+    printList(fields, endLst, calcLst)    
     # print our new summary
     print(f'Top systems most risky are in order: ')
     for ip in calcLst:
@@ -425,10 +416,10 @@ def topTenIP(lst:list, amt) -> list:
 
     # if we are building a graph, find it, and go do it.
     if args.sBar == True:
-        stakBar(lst)
+        stakBar(endLst)
     if args.cGraphics == True:
         print('Creating graphics...')
-        a, b, c, d, e = calcRisk(lst, 'all') # I won't always use e = None
+        a, b, c, d, e = calcRisk(endLst, 'all') # I won't always use e = None
         riskGraph(a,b,c,d)
 
 
@@ -437,23 +428,29 @@ def searchExploit(lst:list) -> None:
     # I don't want the cloning message displayed unless we need it.
     import cve_searchsploit as cs # load if needed
     resultLst = []
-
+    executeLst = []
+    dedup = []
+    finalDup = []
     # first clone exploitdb in case its not available
     cs.update_db()
 
     # open our file and run through the list printing results.
     exploitFile = open('exploit.txt', 'w')
+    findingsFile = open('findings.txt', 'w')
     for rows in tqdm(lst):  # progress bar as CVE to Exploits are found
         # find each cve as necessary
         if cs.edbid_from_cve(rows[1]) != []:
-           # if ([rows[1],rows[4]]) not in resultLst: 
-            resultLst.append([rows[4], rows[1], cs.edbid_from_cve(rows[1])]) # add to list and print
-    resultLst.sort(key= lambda x : x)
-    
-    for rows in resultLst:
-        print(f'IP: {rows[0]} :  CVE: {rows[1]} : Exploit: ', {rows[2]}, file = exploitFile)
+            if rows != dedup:
+                for each in cs.edbid_from_cve(rows[1]):
+                    print('IP:{:<15s}:{:<5s}/{:<4}: {:<14} : Exploit: {:<7}'.format(rows[4],rows[6], rows[5],rows[1], each), file = exploitFile)
+                    if each not in executeLst:
+                        subprocess.run(["searchsploit", str(each)], stdout=findingsFile)
+                        executeLst.append(each)
+                dedup.append(rows)
+    if executeLst == []: print('No exploits found...', file=exploitFile)
     # Close me.
     exploitFile.close()
+    findingsFile.close()
 
 def nameSummary(fields:list, lst:list, search:str) -> None:
     "Build and print a list of all vulnerabilities so a quick review can be done."
@@ -519,9 +516,8 @@ def main():
     # create a top X report
     if args.topTen != 0:
         print('\n\nGenerating Top list')
-        topTenIP(rows, args.topTen)
+        topTenIP(fields, lst, ipLst, args.topTen)
         if (args.sBar != True) or (args.sBar == True):
-            input('Press Enter to end review...')
             sys.exit()
     # create a summary and print it
     if args.summary != 0:
