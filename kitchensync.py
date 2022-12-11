@@ -325,9 +325,9 @@ def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
     endLst = []
     sumRisk = 0
 
-    finalLst = [row for ip in ipLst for row in lst if ip == row[4]]
+    finalLst = [row for ip in tqdm(ipLst, desc='Pulling Findings   ') for row in lst if ip == row[4]]
     # now calculate up all the risks for each host to get a top X
-    for ip in tqdm(ipLst, desc='Creating List:'): # run our progressbar so we can see console movement.
+    for ip in tqdm(ipLst, desc='Calculating Leaders'): # run our progressbar so we can see console movement.
         for rows in finalLst:
             if ip in rows:
                 if rows[2] != "":
@@ -339,15 +339,15 @@ def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
     del(calcLst[amt:]) # got my top X.
     # now get those rows that have all the detail for those IP's.
     endLst = [rows for ip in calcLst for rows in finalLst if rows[4] == ip[0]]
-    endLst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
-    printList(fields, endLst, calcLst)    
+    endLst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk   
     # print our new summary
-    print(f'Top systems most risky are in order: ')
+    print(f'\n\nTop systems most risky are in order: ')
     for ip in calcLst:
         print('IP: {:<16} : CVE Risk Value: {:.2f}'.format(ip[0], ip[1]))
 
     # if we are building a graph, find it, and go do it.
     if args.sBar == True:
+        print("Mapping the Chart...")
         stakBar(endLst)
     if args.cGraphics == True:
         print('Creating graphics...')
@@ -435,7 +435,7 @@ def main():
     # Do things based upon arg switches
     # create a top X report
     if args.topTen != 0:
-        print('\n\nGenerating Top list')
+        print('\n\nGenerating Top {:<1} List out of {:<1} findings, and {:<1} IP addresses.'.format(args.topTen, len(lst), len(ipLst)))
         topTenIP(fields, lst, ipLst, args.topTen)
         if (args.sBar != True) or (args.sBar == True):
             sys.exit()
