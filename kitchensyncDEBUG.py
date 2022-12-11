@@ -14,13 +14,13 @@
 # BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
 
 # libraries                             # anything with a *** are libraries that were outside of class.
-import os                               # os access
 import sys                              # printing to a file
 import csv                              # read csv files
 import re                               # search expressions
 import argparse                         # commandline argument parser ***
 import requests                         # grab robots.txt and other text, html files.
 from tqdm import tqdm                   # progress bar for longer processes ***
+import subprocess                       # execute local processes ***
 
 # Argument Parser
 # This sets up our arguments and help/options for the user
@@ -42,7 +42,7 @@ parser.add_argument('-hbar', '--hBar', action='store_true', default=False, help=
 parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print a file of the IP addresses of a search.  Run a search and put [-p] at the end')
 parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
 parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
-parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
+parser.add_argument('-q', '--query', type=int, default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
 parser.add_argument('-s', '--search', type=str, default='.', help='search term to use [ -s Critical].  [ a period . is a wildcard for all]')
 parser.add_argument('-sum', '--summary', type=str,  default=False, help='List all types of vulnability names discovered.  This is a simple list to aid in searching data.  Use: [ -sum Name ]')
 parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
@@ -60,12 +60,12 @@ cGraphics = False
 iPrint = False
 cMerge = None
 aPrint = False
-query = False
-search = '.'
+query = 2
+search = 'dropbear'
 summary = False
 topTen = 0
 webScrap = False
-eXploit = True
+eXploit = False
 sBar = False
 hBar = False
 lUsers = None
@@ -74,7 +74,6 @@ lUsers = None
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
-############################################################
 # open files function
 def openFile(filename:str) -> list:
     "Open a nessus.csv file for fields, and rows."
@@ -83,15 +82,13 @@ def openFile(filename:str) -> list:
             # open the file and grab header from csv
             csvreader = csv.reader(csvfile)
             fields = next(csvreader)
-            rows = [row for row in csvreader]
+            rows = [row for row in tqdm(csvreader, 'Reading File...')]
     # error handling for file mishaps.
-    except csv.Error as err:
-        print(f'\nError in reading the CSV file.  Check your file.\n\n')
-    except IOError as err:
-        print(f'\nFilename of the Nessus Pro CSV mandatory, file not found.\n\n')
 
+    except BaseException as err:
+        print(f'\nFilename of the Nessus Pro CSV mandatory, file not found.\n\n')
+        sys.exit(1)
     return fields, rows
-############################################################
 
 def findFields(fields:list, search:str) -> int:
     "Find the fields we are searching."
@@ -99,6 +96,7 @@ def findFields(fields:list, search:str) -> int:
     for field in fields:
         if (search.lower() == field.lower()) or re.search(search.lower(), field.lower()):
             index = fields.index(field)
+            break # find first match
 
     # Did something come up during the field search.
     if index == 0:
@@ -106,7 +104,6 @@ def findFields(fields:list, search:str) -> int:
         sys.exit()
     return index
 
-############################################################
 def rowInRows(lst:list, index:int) -> list:
     "A basic function to build a list based upon an index/value"
     newLst = []
@@ -115,7 +112,6 @@ def rowInRows(lst:list, index:int) -> list:
             newLst.append(rows[index])
     # return the new list we found based upon our search
     return newLst
-############################################################
 
 def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
     "universal field search feature, tell me the field, and the string, and I will find it"
@@ -130,7 +126,6 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
         result = [rows for rows in lst
                     if (rows[index].lower() == fcat.lower()) or (re.search(fcat.lower(), rows[index].lower()))]
 
-               # sort key lambda JDP and https://blogboard.io/blog/knowledge/python-sorted-lambda/
         result.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
         # gather up the ip addresses for our count
         ipLst = rowInRows(result, 4)
@@ -144,25 +139,26 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
 
     return result, ipLst
-#############################################################
 
-#############################################################
-def printIP(lst:list)-> None:
-    "Print a file "
+def printIP(lst)-> None:
+    "Print a file of IP addresses to be used with others"
     uniqueList = []
-    # open our file for printing.
-    printfile = open('ip-address-output.txt', 'w')
-    # add unique ip addresses to a new list
-    uniqueList = rowInRows(lst, 4)
-    # sort the new list
-    uniqueList.sort()
-    # print IP addresses into a file.
-    for item in uniqueList:
-        print('{:<15s} '.format(item), file= printfile)
-    # close printfile
-    printfile.close()
-    print('IP addresses printed...')
-#############################################################
+    try:
+        # open our file for printing.
+        printFile = open('ip-address-output.txt', 'w')
+        # add unique ip addresses to a new list
+        uniqueList = rowInRows(lst, 4)
+        # sort the new list
+        uniqueList.sort()
+        # print IP addresses into a file.
+        for item in uniqueList:
+            print('{:<15s} '.format(item), file= printFile)
+        # close printfile
+        printFile.close()
+        print('IP addresses printed...')
+
+    except IOError as err:
+        print(f'File Error: {err}')
 
 def printList(fields:list, lst:list, ipLst) -> None:
     "Handle the printing of lists by using column format printing"
@@ -172,10 +168,10 @@ def printList(fields:list, lst:list, ipLst) -> None:
         turnOnPrint('sink-output.txt')
 
     # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
-    for rows in lst:
-        print('[+] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
-    print('---------------------------------------------------------------------------------------------------------')
-    print('[=] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
+    for x, rows in enumerate(lst):
+        print('[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
+    for i in range(1,160): print('-', end='') # print line
+    print('\n[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
     print("\nTotal Entries: ", len(lst)) # print record count
     print("Total IP Addresses in the list: ", len(ipLst))
 
@@ -191,37 +187,29 @@ def printList(fields:list, lst:list, ipLst) -> None:
 
 ################################################################
 
-def pQuery(lst:list) -> None:
+def pQuery(lst:list, num:int) -> None:
     #declare
-    ipLst = []
-    portLst = []
-    # roll through the list and build ip list and port list.
-    for rows in lst:
-        # gather IP addresses and put into a string
-        if rows[4] not in ipLst:
-            ipLst.append(rows[4])
-        # gather ports as well.
-        if rows[6] not in portLst:
-            portLst.append(rows[6])
-
-    # print the last record of the name info, and add all the IP's/ports affected by that issue.
-    # I don't want a scrolling screen of data, rather just a single example, 
-    # thus the indenting is on purpose
-    print('-------------------------------------------------------------------')
-    print(f'[+] Name: {rows[7]}')
-    print(f'[+] Ports        : ', portLst)
-    print(f'[+] CVE          : ', rows[1])
-    print(f'[+] CVE Base     : ', rows[3])
-    print(f'[+] Risk Level   : ', rows[3])
-    print('-------------------------------------------------------------------')
-    print(f'[+] Synopsis: ', rows[8])
-    print(f'\n[+] Description: ', rows[9])
-    print(f'\n[+] Plugin Output: ', rows[12])
-    print(f'\n[+] Solution:', rows[10])
-    print(f'\n[+] See also  :', rows[11])
-    print('-------------------------------------------------------------------')
-    print(f'[+] IP Addresses :', ipLst)
-    print('\n\n\n')
+    num = num - 1 # reduce num by one for the correct query.
+    for x, rows in enumerate(lst): # enhancement to find the specfic record.
+        if x == num:
+            # print the last record of the name info, and add all the IP's/ports affected by that issue.
+            # I don't want a scrolling screen of data, rather just a single example, 
+            # thus the indenting is on purpose
+            print('-------------------------------------------------------------------')
+            print(f'[+] Name: {rows[7]}')
+            print(f'[+] Ports        : ', rows[6])
+            print(f'[+] CVE          : ', rows[1])
+            print(f'[+] CVE Base     : ', rows[3])
+            print(f'[+] Risk Level   : ', rows[3])
+            print('-------------------------------------------------------------------')
+            print(f'[+] Synopsis: ', rows[8])
+            print(f'\n[+] Description: ', rows[9])
+            print(f'\n[+] Plugin Output: ', rows[12])
+            print(f'\n[+] Solution:', rows[10])
+            print(f'\n[+] See also  :', rows[11])
+            print('-------------------------------------------------------------------')
+            print(f'[+] IP Addresses :', rows[4])
+            print('\n\n\n')
 
 ################################################################
 
@@ -592,10 +580,10 @@ def main():
         print('running. file download')
         requestPage(lst, download)
     # printing section
-    if (search != '.') and (query == True):
-        pQuery(lst)
+    if (search != '.') and (query !=False):
+        pQuery(lst, query)
         sys.exit()
-    elif(search == '.') and (query == True):
+    elif(search == '.') and (query !=False):
         print('\nYour query failed.  You need to narrow the search to a single name field item to inspect the details.\n\n')
         sys.exit()
     if iPrint == True:
@@ -610,8 +598,11 @@ def main():
         localUsers(fields, lst, lUsers)
         sys.exit()
     
-    # otherwise always print this list, either to a file or to the screen.
-    printList(fields, lst, ipLst) # print fields, and findings.
+    lst, ipLst = findResults(fields, rows, search, field) 
+    if len(lst) > 100000:
+        nameSummary(fields, lst, 'name') # if its a large file, show the summary
+    else:    
+        printList(fields, lst, ipLst) # print fields, and findings.
 
     ###############################################
 

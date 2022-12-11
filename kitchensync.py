@@ -14,7 +14,6 @@
 # BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
 
 # libraries                             # anything with a *** are libraries that were outside of class.
-import os                               # os access
 import sys                              # printing to a file
 import csv                              # read csv files
 import re                               # search expressions
@@ -43,7 +42,7 @@ parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help
 parser.add_argument('-l', '--lUsers', type=str, help='Display a list of users that Nessus discovered.')
 parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
 parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
-parser.add_argument('-q', '--query', action='store_true', default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
+parser.add_argument('-q', '--query', type=int, default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
 parser.add_argument('-s', '--search', type=str, default='.', help='search term to use [ -s Critical].  [ a period . is a wildcard for all]')
 parser.add_argument('-sum', '--summary', type=str,  default=False, help='List all types of vulnability names discovered.  This is a simple list to aid in searching data.  Use: [ -sum Name ]')
 parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
@@ -54,7 +53,6 @@ args = parser.parse_args()
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
-
 # open files function
 def openFile(filename:str) -> list:
     "Open a nessus.csv file for fields, and rows."
@@ -63,7 +61,7 @@ def openFile(filename:str) -> list:
             # open the file and grab header from csv
             csvreader = csv.reader(csvfile)
             fields = next(csvreader)
-            rows = [row for row in csvreader]
+            rows = [row for row in tqdm(csvreader, 'Reading file...')]
 
     # error handling for file mishaps.
     except BaseException as err:
@@ -77,6 +75,8 @@ def findFields(fields:list, search:str) -> int:
     for field in fields:
         if (search.lower() == field.lower()) or re.search(search.lower(), field.lower()):
             index = fields.index(field)
+            break # find the first match
+
     # Did something come up during the field search.
     if index == 0:
         print("No field found, exception found.")
@@ -101,11 +101,10 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
         # search for our field and return the index
         index = findFields(fields, search)
 
-        # build list for our result [List Comprehension decision for experiment]
+        # build list for our result
         result = [rows for rows in lst
                     if (rows[index].lower() == fcat.lower()) or (re.search(fcat.lower(), rows[index].lower()))]
 
-               # sort key lambda JDP and https://blogboard.io/blog/knowledge/python-sorted-lambda/
         result.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
         # gather up the ip addresses for our count
         ipLst = rowInRows(result, 4)
@@ -116,7 +115,7 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
 
     # error handling for invalid searches.
     except BaseException as err:
-        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.')
+        print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
 
     return result, ipLst
 
@@ -147,11 +146,11 @@ def printList(fields:list, lst:list, ipLst) -> None:
         # Turn on printing if necessary
         if args.aPrint == True: turnOnPrint('sink-output.txt')
 
-        # printing in columns: https://scientificallysound.org/2016/10/17/python-print3/
-        for rows in lst:
-            print('[+] {:<30s} {:>7s} {:^10} {:^10} {:<15} {:^4}    {:<.75}'.format(rows[4], rows[6], rows[5], rows[3], rows[1], rows[2], rows[7]))
+        # printing in columns
+        for x, rows in enumerate(lst):
+            print('[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
         for i in range(1,160): print('-', end='') # print line
-        print('\n[=] {:<30s} {:>7s} {:^10} {:^10} {:^15} {:>.4}    {:<5}'.format(fields[4], fields[6], fields[5], fields[3], fields[1], fields[2], fields[7]))
+        print('\n[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
         print("\nTotal Entries: ", len(lst)) # print record count
         print("Total IP Addresses in the list: ", len(ipLst))
 
@@ -168,71 +167,42 @@ def printList(fields:list, lst:list, ipLst) -> None:
         print(f'Error found: {err}')
 
 
-def pQuery(lst:list) -> None:
+def pQuery(lst:list, num:int) -> None:
     #declare
-    ipLst = []
-    portLst = []
-    # roll through the list and build ip list and port list.
-    for rows in lst:
-        # gather IP addresses and put into a string
-        if rows[4] not in ipLst:
-            ipLst.append(rows[4])
-        # gather ports as well.
-        if rows[6] not in portLst:
-            portLst.append(rows[6])
-
-    # print the last record of the name info, and add all the IP's/ports affected by that issue.
-    # I don't want a scrolling screen of data, rather just a single example, 
-    # thus the indenting is on purpose
-    print('-------------------------------------------------------------------')
-    print(f'[+] Name: {rows[7]}')
-    print(f'[+] Ports        : ', portLst)
-    print(f'[+] CVE          : ', rows[1])
-    print(f'[+] CVE Base     : ', rows[3])
-    print(f'[+] Risk Level   : ', rows[3])
-    print('-------------------------------------------------------------------')
-    print(f'[+] Synopsis: ', rows[8])
-    print(f'\n[+] Description: ', rows[9])
-    print(f'\n[+] Plugin Output: ', rows[12])
-    print(f'\n[+] Solution:', rows[10])
-    print(f'\n[+] See also  :', rows[11])
-    print('-------------------------------------------------------------------')
-    print(f'[+] IP Addresses :', ipLst)
-    print('\n\n\n')
-
-
+    num = num - 1 # reduce num by one for the correct query.
+    for x, rows in enumerate(lst): # enhancement to find the specfic record.
+            if x == num:
+                # print the last record of the name info,
+                print('-------------------------------------------------------------------')
+                print(f'[+] Name: {rows[7]}')
+                print(f'[+] Ports        : ', rows[6])
+                print(f'[+] CVE          : ', rows[1])
+                print(f'[+] CVE Base     : ', rows[3])
+                print(f'[+] Risk Level   : ', rows[3])
+                print('-------------------------------------------------------------------')
+                print(f'[+] Synopsis: ', rows[8])
+                print(f'\n[+] Description: ', rows[9])
+                print(f'\n[+] Plugin Output: ', rows[12])
+                print(f'\n[+] Solution:', rows[10])
+                print(f'\n[+] See also  :', rows[11])
+                print('-------------------------------------------------------------------')
+                print(f'[+] IP Addresses :', rows[4])
+                print('\n\n\n')
 
 def attackFiles(lst:list) -> None:
     "Gather Eyewitness data / nikto data and create attack files"
-    # look for directories and if not there, make them.
-    niktodir = 'nikto'
-    eyewitnessdir = 'eyewitness'
-
-    # create directories for the data.
-    for i in (niktodir, eyewitnessdir):
-        isExist = os.path.exists(i)
-        if not isExist:
-            os.makedirs(i)
-
     # create our files, directories, and data elements.
-    with open("eyewitness/eyewitness.txt", 'w') as fp:
-        with open("nikto/nikto.sh", 'w') as np:
-           # open files so we can write attack files.
-                for rows in lst:  # write all at once.
-                    if re.search("HTTP Server", rows[7]):
-                        eyewitness = "http://" + rows[4] + ":" + rows[6] + "\n"
-                        niktoitem = "nikto -h " + rows[4] + ":" + rows[6] + " -o " + rows[4] + "-" + rows[6] + ".txt" + "\n"
-                        fp.write(eyewitness)
-                        np.write(niktoitem)
-
+    with open("eyewitness.txt", 'w') as fp:
+    # open files so we can write attack files.
+        for rows in lst:  # write all at once.
+            if re.search("HTTP Server", rows[7]):
+                eyewitness = "http://" + rows[4] + ":" + rows[6] + "\n"
+                fp.write(eyewitness)
     # print user message
     print("files created...\n\n")
     print('Go into each directory, and execute the files using normal sh command structure, or use the underlying scripts [eyewitness].')
     print('Run each .sh file as a job task in Linux')
-    print('[ nohup sh nikto.sh & ] then watch the nohup.log file for details. ')
     print('Run eyewitness using [ eyewitness -f eyewitness.txt ]')
-
-
 
 def calcRisk(lst:list, item:str) -> int:
     """ Generate risk figures for detailed data points """
@@ -271,7 +241,6 @@ def riskGraph(crit:int,high:int,med:int,low:int) -> None:
     "Create a graph using the risk points."
     # I only want to see the graphing message if we choose to graph. No reason to run everytime.
     import matplotlib.pyplot as plt  # Turn on if were graphing only.  Don't turn on globally
-    # learned alot in class, but here: https://www.geeksforgeeks.org/bar-plot-in-matplotlib/
 
     # count the values for each item.
     # gather keys and values
@@ -280,7 +249,6 @@ def riskGraph(crit:int,high:int,med:int,low:int) -> None:
     answer = "Total Risks Found: " + str(crit + high + med + low)
 
     # setup color values
-    # RGB from W3Schools: https://www.w3schools.com/python/matplotlib_bars.asp
     c = ['#cc0000', '#ff8300', '#ffcf00', '#0000d4']
 
     # plot graph
@@ -319,8 +287,6 @@ def requestPage(lst:list, req:str) -> None:
 def turnOnPrint(fil:str) -> None:
     "Turn on Console Prints"
     # if were printing then set stdout to a file.
-    # (https://www.delftstack.com/howto/python/python-output-to-file/)
-
     original_stdout = sys.stdout  # save original stdout
     sys.stdout = open(fil, 'w') # write file
 
@@ -337,13 +303,13 @@ def merge(lst:list, fil:str)-> None:
     fields, lst2 = openFile(fil) # go get the second file and return a list
 
     # extend the first list with the second one, no dups.
-    lst.extend(y for y in lst2 if y not in lst) #https://www.i2tutorials.com/combining-two-lists-and-removing-duplicates/
+    lst.extend(y for y in lst2 if y not in lst) 
     print(f'Merging: {args.filename} and {fil} into a new file called new-merged-csv.csv')
 
     ## Save the merged file into a new file so we don't destroy original.
     with open('new-merged-csv.csv', 'w', newline='') as f: #
-        write = csv.writer(f) # https://stackoverflow.com/questions/3348460/csv-file-written-with-python-has-blank-lines-between-each-row
-        write.writerow(fields) #https://www.geeksforgeeks.org/python-save-list-to-csv/
+        write = csv.writer(f) # 
+        write.writerow(fields) #
         write.writerows(lst)
     print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.\n\n')
 
@@ -387,7 +353,6 @@ def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
     endLst = []
     sumRisk = 0
 
-    #https://medium.com/@harshit4084/track-your-loop-using-tqdm-7-ways-progress-bars-in-python-make-things-easier-fcbbb9233f24
     finalLst = [row for ip in ipLst for row in lst if ip == row[4]]
     # now calculate up all the risks for each host to get a top X
     for ip in tqdm(ipLst, desc='Creating List:'): # run our progressbar so we can see console movement.
@@ -440,7 +405,7 @@ def searchExploit(lst:list) -> None:
                         subprocess.run(["searchsploit", str(each)], stdout=findingsFile)
                         executeLst.append(each)
                 dedup.append(rows)
-    if executeLst == []: print('No exploits found...', file=exploitFile)
+    if executeLst == []: print('No exploits found...')
     # Close me.
     exploitFile.close()
     findingsFile.close()
@@ -471,12 +436,10 @@ def nameSummary(fields:list, lst:list, search:str) -> None:
 def localUsers(fields:list, lst:list, fcat:str) -> None:
     "A module to review the lows for disabled users"
     mainSP = []
-
+    # print data to a file if desired.
     if args.aPrint == True: turnOnPrint('localusers.txt')
-        
     # grab a list of systems that have the synopsis field for users
     newLst, ipLst = findResults(fields, lst, fcat, 'name',) 
-    synopLst = rowInRows(newLst, 12)
     for rows in newLst:
         mainSP = rows[12].split('\n')
         for row in mainSP:
@@ -542,10 +505,10 @@ def main():
         print('running. file download')
         requestPage(lst, args.download)
     # printing section
-    if (args.search != '.') and (args.query == True):
-        pQuery(lst)
+    if (args.search != '.') and (args.query !=0):
+        pQuery(lst, args.query)
         sys.exit()
-    elif(args.search == '.') and (args.query == True):
+    elif(args.search == '.') and (args.query !=0):
         print('\nYour query failed.  You need to narrow the search to a single name field item to inspect the details.\n\n')
         sys.exit()
     if args.iPrint == True:
@@ -564,7 +527,11 @@ def main():
         sys.exit()
 
     lst, ipLst = findResults(fields, rows, args.search, args.field) 
-    printList(fields, lst, ipLst) # print fields, and findings.
+    if len(lst) > 100000:
+        nameSummary(fields, lst, 'name') # if its a large file, show the summary
+    else:    
+        printList(fields, lst, ipLst) # print fields, and findings.
+
     ###############################################
 
 # dunder start
