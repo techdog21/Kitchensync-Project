@@ -515,7 +515,7 @@ def main():
         print('\nPrinting your IP data to a file.')
         printIP(lst)
         sys.exit()
-    # stacked bar section
+    # stacked bar sections
     if (args.sBar == True) and (args.topTen == False):
         print('\n\nYou need to perform a TOP TEN type search [-t 10] to get a stacked barchart.')
         sys.exit()

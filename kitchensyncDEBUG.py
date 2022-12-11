@@ -192,7 +192,7 @@ def pQuery(lst:list, num:int) -> None:
     num = num - 1 # reduce num by one for the correct query.
     for x, rows in enumerate(lst): # enhancement to find the specfic record.
         if x == num:
-            # print the last record of the name info, and add all the IP's/ports affected by that issue.
+            # print the last records of the name info, and add all the IP's/ports affected by that issue.
             # I don't want a scrolling screen of data, rather just a single example, 
             # thus the indenting is on purpose
             print('-------------------------------------------------------------------')
