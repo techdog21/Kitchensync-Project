@@ -10,7 +10,6 @@
 # mechanisms.  So this tool will make up for the several shortcomings by slicing, dicing, and manipulating
 # data from Tenable Nessus CSV files.  This tool will keep me in the console so I can find vulnerabilities
 # and exploit them from the same console.
-
 # BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
 
 # libraries                             
@@ -363,7 +362,6 @@ def searchExploit(lst:list) -> None:
     dedup = []
     # first clone exploitdb in case its not available
     cs.update_db()
-
     # open our file and run through the list printing results.
     exploitFile = open('exploit.txt', 'w')
     findingsFile = open('findings.txt', 'w')
@@ -399,7 +397,6 @@ def nameSummary(fields:list, lst:list, search:str) -> None:
         print('[=] Total number of records: ', len(newLst))
         print("\nSearchable Fields: ", fields, end= '\n\n')
         print("\n\n")
-
     # error handling for invalid searches.
     except BaseException as err:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
@@ -433,7 +430,7 @@ def main():
     #################################################
     # grab the file, and start gathering information
     fields, rows = openFile(args.filename) # Grab the data from the csv, and return fields + rows in a list
-    lst, ipLst = findResults(fields, rows, args.search, args.field)  # make into a future switch  -C for Critical -H for High
+    lst, ipLst = findResults(fields, rows, args.search, args.field)  # make into a future switch
 
     # Do things based upon arg switches
     # create a top X report
@@ -497,7 +494,6 @@ def main():
         nameSummary(fields, lst, 'name') # if its a large file, show the summary
     else:    
         printList(fields, lst, ipLst) # print fields, and findings.
-
 # dunder start
 if __name__ == "__main__":
     main()
