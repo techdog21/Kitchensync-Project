@@ -13,19 +13,16 @@
 
 # BEST IF RUN ON KALI LINUX.  SEARCHSPLOIT DATABASES NEED TO BE INSTALLED ON THE COMPUTER RUNNING THIS FILE.
 
-# libraries                             # anything with a *** are libraries that were outside of class.
+# libraries                             
 import sys                              # printing to a file
 import csv                              # read csv files
 import re                               # search expressions
-import argparse                         # commandline argument parser ***
+import argparse                         # commandline argument parser
 import requests                         # grab robots.txt and other text, html files.
-from tqdm import tqdm                   # progress bar for longer processes ***
-import subprocess                       # execute local processes ***
+from tqdm import tqdm                   # progress bar for longer processes
+import subprocess                       # execute local processes
 
 # Argument Parser
-# This sets up our arguments and help/options for the user
-# discovered argparse: https://towardsdatascience.com/a-simple-guide-to-command-line-arguments-with-argparse-6824c30ab1c3
-
 parser = argparse.ArgumentParser(
         prog='kitchensink.py',
         description='This program is a Nessus Pro CSV Parser.',
@@ -62,7 +59,6 @@ def openFile(filename:str) -> list:
             csvreader = csv.reader(csvfile)
             fields = next(csvreader)
             rows = [row for row in tqdm(csvreader, 'Reading file...')]
-
     # error handling for file mishaps.
     except BaseException as err:
         print(f'\nFilename of the Nessus Pro CSV mandatory, file not found.\n\n')
@@ -71,12 +67,10 @@ def openFile(filename:str) -> list:
 
 def findFields(fields:list, search:str) -> int:
     "Find the fields we are searching."
-
     for field in fields:
         if (search.lower() == field.lower()) or re.search(search.lower(), field.lower()):
             index = fields.index(field)
             break # find the first match
-
     # Did something come up during the field search.
     if index == 0:
         print("No field found, exception found.")
@@ -100,25 +94,20 @@ def findResults(fields:list, lst:list, fcat:str, search:str) -> list:
     try: # check for a valid field for our search.
         # search for our field and return the index
         index = findFields(fields, search)
-
         # build list for our result
         result = [rows for rows in lst
                     if (rows[index].lower() == fcat.lower()) or (re.search(fcat.lower(), rows[index].lower()))]
-
         result.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk
         # gather up the ip addresses for our count
         ipLst = rowInRows(result, 4)
-
         # raise error if nothing is returnable.
         if len(result) == 0:
             raise ValueError
-
     # error handling for invalid searches.
     except BaseException as err:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
 
     return result, ipLst
-
 
 def printIP(lst)-> None:
     "Print a file of IP addresses to be used with others"
@@ -145,7 +134,6 @@ def printList(fields:list, lst:list, ipLst) -> None:
     try:
         # Turn on printing if necessary
         if args.aPrint == True: turnOnPrint('sink-output.txt')
-
         # printing in columns
         for x, rows in enumerate(lst):
             print('[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
@@ -153,44 +141,40 @@ def printList(fields:list, lst:list, ipLst) -> None:
         print('\n[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
         print("\nTotal Entries: ", len(lst)) # print record count
         print("Total IP Addresses in the list: ", len(ipLst))
-
         # make a printout of the core main calcs so you can see if critical/highs exist and should be examined.
         crit, high, med, low, non = calcRisk(lst, 'all')
         totNone = ((non / len(lst)) * 100)
         print(f'Risk Criteria: [Criticals: {crit}, Highs: {high}, Mediums, {med}, Lows: {low}, None: {non}, None Percent: {totNone:.2f}%]\n')
         print("Searchable Fields: ", fields, end= '\n\n')
-
         # Turn off printing
         if args.aPrint == True: turnOffPrint() # turn off printing
-
     except BaseException as err:
         print(f'Error found: {err}')
-
 
 def pQuery(lst:list, num:int) -> None:
     #declare
     num = num - 1 # reduce num by one for the correct query.
     for x, rows in enumerate(lst): # enhancement to find the specfic record.
-            if x == num:
-                # print the last record of the name info,
-                print('-------------------------------------------------------------------')
-                print(f'[+] Name: {rows[7]}')
-                print(f'[+] Ports        : ', rows[6])
-                print(f'[+] CVE          : ', rows[1])
-                print(f'[+] CVE Base     : ', rows[3])
-                print(f'[+] Risk Level   : ', rows[3])
-                print('-------------------------------------------------------------------')
-                print(f'[+] Synopsis: ', rows[8])
-                print(f'\n[+] Description: ', rows[9])
-                print(f'\n[+] Plugin Output: ', rows[12])
-                print(f'\n[+] Solution:', rows[10])
-                print(f'\n[+] See also  :', rows[11])
-                print('-------------------------------------------------------------------')
-                print(f'[+] IP Addresses :', rows[4])
-                print('\n\n\n')
+        if x == num:
+            # print the last record of the name info,
+            print('\n\n-------------------------------------------------------------------')
+            print(f'[+] Name: {rows[7]}')
+            print(f'[+] Ports        : ', rows[6])
+            print(f'[+] CVE          : ', rows[1])
+            print(f'[+] CVE Base     : ', rows[3])
+            print(f'[+] Risk Level   : ', rows[3])
+            print('-------------------------------------------------------------------')
+            print(f'[+] Synopsis: ', rows[8])
+            print(f'\n[+] Description: ', rows[9])
+            print(f'\n[+] Plugin Output: ', rows[12])
+            print(f'\n[+] Solution:', rows[10])
+            print(f'\n[+] See also  :', rows[11])
+            print('-------------------------------------------------------------------')
+            print(f'[+] IP Addresses :', rows[4])
+            print('\n')
 
 def attackFiles(lst:list) -> None:
-    "Gather Eyewitness data / nikto data and create attack files"
+    "Gather Eyewitness data"
     # create our files, directories, and data elements.
     with open("eyewitness.txt", 'w') as fp:
     # open files so we can write attack files.
@@ -213,11 +197,9 @@ def calcRisk(lst:list, item:str) -> int:
     lcounter = 0
     ncounter = 0
     newLst = []
-
     # build a list for the plot graph [LC]
     if item != 'all':
         newLst = [rows for rows in lst if (rows[4] == item)]
-
     # if plot, do first, if plot do last.
     if item != 'all':
         for rows in newLst: # calc special list
@@ -236,27 +218,22 @@ def calcRisk(lst:list, item:str) -> int:
 
     return ccounter, hcounter, mcounter, lcounter, ncounter
 
-
 def riskGraph(crit:int,high:int,med:int,low:int) -> None:
     "Create a graph using the risk points."
     # I only want to see the graphing message if we choose to graph. No reason to run everytime.
     import matplotlib.pyplot as plt  # Turn on if were graphing only.  Don't turn on globally
-
     # count the values for each item.
     # gather keys and values
     keys = ['Critical:' + str(crit), 'High:' + str(high), 'Medium:' + str(med), 'Low:' + str(low)]
     values = [crit, high, med, low]
     answer = "Total Risks Found: " + str(crit + high + med + low)
-
     # setup color values
     c = ['#cc0000', '#ff8300', '#ffcf00', '#0000d4']
-
     # plot graph
     plt.bar(keys, values, align='center', color=c) # build chart
     plt.xticks(range(len(values)), keys)
     plt.xlabel(answer)
     plt.title("Vulnerabilities by Risk") # make pretty
-
     plt.show()
 
 def get_pages(url) -> str:
@@ -283,19 +260,16 @@ def requestPage(lst:list, req:str) -> None:
 
     turnOffPrint() # turn off std print.
 
-
 def turnOnPrint(fil:str) -> None:
     "Turn on Console Prints"
     # if were printing then set stdout to a file.
     original_stdout = sys.stdout  # save original stdout
     sys.stdout = open(fil, 'w') # write file
 
-
 def turnOffPrint()-> None:
     "Turn off stdout back to original for Console Print off"
     # set stdout back
     sys.stdout = original_stdout
-
 
 def merge(lst:list, fil:str)-> None:
     'Merge two different csv files together.'
@@ -312,7 +286,6 @@ def merge(lst:list, fil:str)-> None:
         write.writerow(fields) #
         write.writerows(lst)
     print('Finished writing CSV file: new-merged-csv.csv.  Old file preserved.\n\n')
-
 
 def stakBar(lst:list) -> None:
     "Generate a stacked bar chart to help understand results"
@@ -381,7 +354,6 @@ def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
         print('Creating graphics...')
         a, b, c, d, e = calcRisk(endLst, 'all') # I won't always use e = None
         riskGraph(a,b,c,d)
-
 
 def searchExploit(lst:list) -> None:
     "Search for exploits using Kali version of SearchSploit"
@@ -455,20 +427,15 @@ def localUsers(fields:list, lst:list, fcat:str) -> None:
     print("Group User List")
     if args.aPrint == True: turnOffPrint()
 
-#####################################################
 # main function
 def main():
     #
     #################################################
     # grab the file, and start gathering information
     fields, rows = openFile(args.filename) # Grab the data from the csv, and return fields + rows in a list
-    # go get what we are looking for...
     lst, ipLst = findResults(fields, rows, args.search, args.field)  # make into a future switch  -C for Critical -H for High
-    # abort if something goes unexpected and returns nothing.
-    ################################################
 
     # Do things based upon arg switches
-
     # create a top X report
     if args.topTen != 0:
         print('\n\nGenerating Top list')
@@ -526,13 +493,10 @@ def main():
         localUsers(fields, lst, args.lUsers)
         sys.exit()
 
-    lst, ipLst = findResults(fields, rows, args.search, args.field) 
     if len(lst) > 100000:
         nameSummary(fields, lst, 'name') # if its a large file, show the summary
     else:    
         printList(fields, lst, ipLst) # print fields, and findings.
-
-    ###############################################
 
 # dunder start
 if __name__ == "__main__":
