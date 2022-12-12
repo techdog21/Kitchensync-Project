@@ -44,6 +44,7 @@ parser.add_argument('-sum', '--summary', type=str,  default=False, help='List al
 parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='WebScrape to a file. Example [robots.txt]')
 parser.add_argument('-x', '--eXploit', action='store_true', default=False, help='Run SearchSploit to find an exploit based upon a list of CVEs searched.')
+parser.add_argument('-force', '--force', action='store_true', default=False, help='Make a full listing show.')
 args = parser.parse_args()
 
 #global variables
@@ -135,7 +136,8 @@ def printList(fields:list, lst:list, ipLst) -> None:
         if args.aPrint == True: turnOnPrint('sink-output.txt')
         # printing in columns
         for x, rows in enumerate(lst):
-            print('[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
+            if (rows[3].lower() == 'critical') or (rows[3].lower() == 'high') or (rows[3].lower() == 'medium'):
+                print('[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
         for i in range(1,160): print('-', end='') # print line
         print('\n[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
         print("\nTotal Entries: ", len(lst)) # print record count
@@ -320,15 +322,12 @@ def stakBar(lst:list) -> None:
 def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
     "Get the top 10 IP addresses from the lst, and then generate a list for those systems with total risk"
     # declare
-    finalLst = []
     calcLst = []
     endLst = []
     sumRisk = 0
-
-    finalLst = [row for ip in tqdm(ipLst, desc='Pulling Findings   ') for row in lst if ip == row[4]]
     # now calculate up all the risks for each host to get a top X
     for ip in tqdm(ipLst, desc='Calculating Leaders'): # run our progressbar so we can see console movement.
-        for rows in finalLst:
+        for rows in lst:
             if ip in rows:
                 if rows[2] != "":
                     sumRisk += float(rows[2])
@@ -338,7 +337,7 @@ def topTenIP(fields:list, lst:list, ipLst:list, amt:int) -> list:
     calcLst.sort(key= lambda x : x[1], reverse=True)    # return a sorted list by Risk Value
     del(calcLst[amt:]) # got my top X.
     # now get those rows that have all the detail for those IP's.
-    endLst = [rows for ip in calcLst for rows in finalLst if rows[4] == ip[0]]
+    endLst = [rows for ip in calcLst for rows in lst if rows[4] == ip[0]]
     endLst.sort(key= lambda x : x[3], reverse=True)    # return a sorted list by Risk   
     # print our new summary
     print(f'\n\nTop systems most risky are in order: ')
@@ -415,13 +414,7 @@ def localUsers(fields:list, lst:list, fcat:str) -> None:
             if re.search('^  - ', row) or re.search('^- ', row):
                 print('{:<60} \t{:<60}'.format(row, rows[4]))
     
-    print("\n\n[Sample Search Strings]")
-    print('Wildcard is .')
-    print('SMB Use Host SID to Enumerate Local Users')
-    print("Microsoft Windows SMB Shares Enumeration")
-    print("Microsoft Windows - Local Users Information : Never Changed Password")
-    print("Windows SMB Shares Unprivileged Access")
-    print("Group User List")
+    print("\n\n[Sample Search Strings: . user smb shares group local domain]\n\n")
     if args.aPrint == True: turnOffPrint()
 
 # main function
@@ -490,10 +483,7 @@ def main():
         localUsers(fields, lst, args.lUsers)
         sys.exit()
 
-    if len(lst) > 100000:
-        nameSummary(fields, lst, 'name') # if its a large file, show the summary
-    else:    
-        printList(fields, lst, ipLst) # print fields, and findings.
+    printList(fields, lst, ipLst) # print fields, and findings.
 # dunder start
 if __name__ == "__main__":
     main()
