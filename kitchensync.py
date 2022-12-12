@@ -462,11 +462,8 @@ def main():
         print('running. file download')
         requestPage(lst, args.download)
     # printing section
-    if (args.search != '.') and (args.query !=0):
+    if (args.query !=0):
         pQuery(lst, args.query)
-        sys.exit()
-    elif(args.search == '.') and (args.query !=0):
-        print('\nYour query failed.  You need to narrow the search to a single name field item to inspect the details.\n\n')
         sys.exit()
     if args.iPrint == True:
         print('\nPrinting your IP data to a file.')
