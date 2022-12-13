@@ -1,0 +1,4 @@
+cve_searchsploit==1.7
+matplotlib==3.5.2
+requests==2.27.1
+tqdm==4.64.0
