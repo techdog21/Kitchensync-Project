@@ -136,7 +136,10 @@ def printList(fields:list, lst:list, ipLst) -> None:
         if args.aPrint == True: turnOnPrint('sink-output.txt')
         # printing in columns
         for x, rows in enumerate(lst):
-            if (rows[3].lower() == 'critical') or (rows[3].lower() == 'high') or (rows[3].lower() == 'medium'):
+            if args.force == False:
+                if (rows[3].lower() == 'critical') or (rows[3].lower() == 'high') or (rows[3].lower() == 'medium'):
+                    print('[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
+            else:
                 print('[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, rows[4], rows[6], rows[5], rows[3], rows[1], rows[7]))
         for i in range(1,160): print('-', end='') # print line
         print('\n[{:<1}] {:<35s} {:>7s} {:<10} {:<10} {:<15} {:<20}'.format(x+1, fields[4], fields[6], fields[5], fields[3], fields[1], fields[7]))
@@ -183,11 +186,19 @@ def attackFiles(lst:list) -> None:
             if re.search("HTTP Server", rows[7]):
                 eyewitness = "http://" + rows[4] + ":" + rows[6] + "\n"
                 fp.write(eyewitness)
-    # print user message
+    fp.close()
+    # create our snmp file for scanning.
+    with open("snmp-attack.sh", 'w') as sp:
+        for rows in lst:
+            if re.search("SNMP Protocol Version Detection", rows[7]):
+                snmpfile = 'braa public@' + rows[4] + ":.1.3.6.*\n"
+                sp.write(snmpfile)
+    sp.close
+
     print("files created...\n\n")
-    print('Go into each directory, and execute the files using normal sh command structure, or use the underlying scripts [eyewitness].')
     print('Run each .sh file as a job task in Linux')
     print('Run eyewitness using [ eyewitness -f eyewitness.txt ]')
+    print('Run snmp using [sh snmp-attack.sh]')
 
 def calcRisk(lst:list, item:str) -> int:
     """ Generate risk figures for detailed data points """
