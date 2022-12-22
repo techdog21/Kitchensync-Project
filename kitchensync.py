@@ -64,6 +64,9 @@ def sdan(lst:list)-> list:
     except IOError as err:
         print('Check your key.txt file for your API key to the Shodan Service.')
 
+    if args.aPrint == True: 
+        print('Printing to a file called shodan.txt') 
+        turnOnPrint('shodan.txt')
     # loop through to get IP addresses avoiding RFC 1918 addresses
     for rows in lst:
         if rows[4].startswith("10.") or rows[4].startswith("172.16") or rows[4].startswith("192.168"):
@@ -83,6 +86,9 @@ def sdan(lst:list)-> list:
                 except shodan.APIError as e:
                     print('Error: {}'.format(e))
                 finalLst.append(rows[4]) # don't look twice
+    if args.aPrint == True: 
+        print('Done printing.') 
+        turnOffPrint()
 
 # open files function
 def openFile(filename:str) -> list:
