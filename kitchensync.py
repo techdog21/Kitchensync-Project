@@ -20,6 +20,7 @@ import argparse                         # commandline argument parser
 import requests                         # grab robots.txt and other text, html files.
 from tqdm import tqdm                   # progress bar for longer processes
 import subprocess                       # execute local processes
+import shodan                           # run shodan searches
 
 # Argument Parser
 parser = argparse.ArgumentParser(
@@ -40,6 +41,7 @@ parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV f
 parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
 parser.add_argument('-q', '--query', type=int, default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
 parser.add_argument('-s', '--search', type=str, default='.', help='search term to use [ -s Critical].  [ a period . is a wildcard for all]')
+parser.add_argument('-shodan', '--shodan', action='store_true', default=False, help='run showdan on IP addresses provided')
 parser.add_argument('-sum', '--summary', type=str,  default=False, help='List all types of vulnability names discovered.  This is a simple list to aid in searching data.  Use: [ -sum Name ]')
 parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='WebScrape to a file. Example [robots.txt]')
@@ -49,6 +51,38 @@ args = parser.parse_args()
 
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
+
+# shodan reports ##
+def sdan(lst:list)-> list:
+    "Go to Shodan and pull IP data from their database"
+    finalLst =[] # I do declare
+    # read the key file for the shodan api key
+    try: 
+        f = open('key.txt', 'r')
+        SHODAN_API_KEY = f.read()
+        api = shodan.Shodan(SHODAN_API_KEY)
+    except IOError as err:
+        print('Check your key.txt file for your API key to the Shodan Service.')
+
+    # loop through to get IP addresses avoiding RFC 1918 addresses
+    for rows in lst:
+        if rows[4].startswith("10.") or rows[4].startswith("172.16") or rows[4].startswith("192.168"):
+            print('You cannot Shodan Internal IP Addresses')
+            sys.exit()
+        else:
+            if rows[4] not in finalLst:
+                try:
+                    # Search Shodan
+                    print (f'------- {rows[4]} -----------------')
+                    results = api.host(rows[4])
+                    for key, values in results.items():
+                        # Show the results
+                        if key != 'data':
+                            print(key, " : ", values)
+                    print(f'------------------------------------\n')
+                except shodan.APIError as e:
+                    print('Error: {}'.format(e))
+                finalLst.append(rows[4]) # don't look twice
 
 # open files function
 def openFile(filename:str) -> list:
@@ -179,6 +213,7 @@ def pQuery(lst:list, num:int) -> None:
 
 def attackFiles(lst:list) -> None:
     "Gather Eyewitness data"
+    chkLst =[]
     # create our files, directories, and data elements.
     with open("eyewitness.txt", 'w') as fp:
     # open files so we can write attack files.
@@ -191,8 +226,10 @@ def attackFiles(lst:list) -> None:
     with open("snmp-attack.sh", 'w') as sp:
         for rows in lst:
             if re.search("SNMP Protocol Version Detection", rows[7]):
-                snmpfile = 'braa public@' + rows[4] + ":.1.3.6.*\n"
-                sp.write(snmpfile)
+                if rows[4] not in chkLst:
+                    snmpfile = 'braa public@' + rows[4] + ":.1.3.6.*\n"
+                    sp.write(snmpfile)
+                    chkLst.append(rows[4])
     sp.close
 
     print("files created...\n\n")
@@ -489,6 +526,9 @@ def main():
         sys.exit()
     if args.lUsers !=None :
         localUsers(fields, lst, args.lUsers)
+        sys.exit()
+    if args.shodan !=False:
+        sdan(lst)
         sys.exit()
 
     printList(fields, lst, ipLst) # print fields, and findings.
