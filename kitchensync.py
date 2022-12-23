@@ -30,6 +30,7 @@ parser = argparse.ArgumentParser(
         '[https://github.com/andreafioraldi/cve_searchsploit]')
 
 parser.add_argument("filename", type=str, help='The [filename] of CSV to read and display.  These are the results you want.')
+parser.add_argument('-address', '--address', action='store_true', default=False, help='Generate a list of subnets identified')
 parser.add_argument('-bar', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a TOPTEN type search only')
 parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically create attack files and store in all output formats.')
 parser.add_argument('-download', '--download', type=str, default='robots.txt', help='Download a file, and list the filename to name the file after its been downloaded [ex. -d robots.txt].  Text file only.')
@@ -52,6 +53,21 @@ args = parser.parse_args()
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
+# Get a list of IP addresses and find subnets
+def subnetFinder(lst:list):
+    "Get a list, pull all IP's, and build a subnet list for easier scanning"
+    ipLst = rowInRows(lst, 4) # get my IP's
+    subnetLst = []
+    for ip in ipLst:
+        item = ip.rsplit('.')
+        sub = item[0] + '.' + item[1] + '.' + item[2] + '.0'
+        if sub not in subnetLst:
+            subnetLst.append(sub)
+    print('\nSubnets Found')
+    for i in subnetLst: print('[+]', i, end='\n') # print line
+
+
+
 # shodan reports ##
 def sdan(lst:list)-> list:
     "Go to Shodan and pull IP data from their database"
@@ -69,7 +85,7 @@ def sdan(lst:list)-> list:
         turnOnPrint('shodan.txt')
     # loop through to get IP addresses avoiding RFC 1918 addresses
     for rows in lst:
-        if rows[4].startswith("10.") or rows[4].startswith("172.16") or rows[4].startswith("192.168"):
+        if rows[4].startswith("10.") or rows[4].startswith("172.16") or rows[4].startswith("192.168.1"):
             print('You cannot Shodan Internal IP Addresses')
             sys.exit()
         else:
@@ -535,6 +551,10 @@ def main():
         sys.exit()
     if args.shodan !=False:
         sdan(lst)
+        sys.exit()
+    if args.address !=False:
+        print('\n Generating Subnet List')
+        subnetFinder(lst)
         sys.exit()
 
     printList(fields, lst, ipLst) # print fields, and findings.
