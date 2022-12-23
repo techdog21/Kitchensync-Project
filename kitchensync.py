@@ -63,10 +63,10 @@ def subnetFinder(lst:list):
         sub = item[0] + '.' + item[1] + '.' + item[2] + '.0'
         if sub not in subnetLst:
             subnetLst.append(sub)
-    print('\nSubnets Found')
-    for i in subnetLst: print('[+]', i, end='\n') # print line
-
-
+    print('\nSubnets Found', len(subnetLst))
+    print('--------------------------------')
+    for i in subnetLst: print(i, end='\n') # print line
+    print('--------------------------------')
 
 # shodan reports ##
 def sdan(lst:list)-> list:
