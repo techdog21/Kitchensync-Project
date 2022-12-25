@@ -21,6 +21,7 @@ import requests                         # grab robots.txt and other text, html f
 from tqdm import tqdm                   # progress bar for longer processes
 import subprocess                       # execute local processes
 import shodan                           # run shodan searches
+import networkx as nx                   # import network graphing.
 
 # Argument Parser
 parser = argparse.ArgumentParser(
@@ -53,6 +54,17 @@ args = parser.parse_args()
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
+# put together a newtork graph
+def networkGraph(lst:list) -> None:
+    import matplotlib.pyplot as plt
+    G = nx.DiGraph()
+    G.add_nodes_from(lst)
+    # create links to edges.
+    for item in lst:
+        G.add_edge("Red Team", item)
+    nx.draw(G, with_labels=True)
+    plt.show()
+
 # Get a list of IP addresses and find subnets
 def subnetFinder(lst:list):
     "Get a list, pull all IP's, and build a subnet list for easier scanning"
@@ -60,13 +72,14 @@ def subnetFinder(lst:list):
     subnetLst = []
     for ip in ipLst:
         item = ip.rsplit('.')
-        sub = item[0] + '.' + item[1] + '.' + item[2] + '.0'
+        sub = item[0] + '.' + item[1] + '.' + item[2] + '.0/24'
         if sub not in subnetLst:
             subnetLst.append(sub)
     print('\nSubnets Found', len(subnetLst))
     print('--------------------------------')
     for i in subnetLst: print(i, end='\n') # print line
     print('--------------------------------')
+    networkGraph(subnetLst)
 
 # shodan reports ##
 def sdan(lst:list)-> list:
