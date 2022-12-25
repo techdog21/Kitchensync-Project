@@ -1,6 +1,5 @@
 cve_searchsploit==1.7
-matplotlib==3.6.2
+networkx==2.7.1
 requests==2.28.1
 shodan==1.28.0
 tqdm==4.64.1
-
