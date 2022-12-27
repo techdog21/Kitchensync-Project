@@ -56,6 +56,7 @@ original_stdout = sys.stdout # grab a copy of standard out now before we do any 
 
 # put together a newtork graph
 def networkGraph(lst:list) -> None:
+    "Build a network graphic showing the red team attacking the subnets."
     import matplotlib.pyplot as plt
     G = nx.DiGraph()
     G.add_nodes_from(lst)
@@ -358,12 +359,9 @@ def turnOffPrint()-> None:
 def merge(lst:list, fil:str)-> None:
     'Merge two different csv files together.'
     # go get our data to merge.
-    fields, lst2 = openFile(fil) # go get the second file and return a list
-
-    # extend the first list with the second one, no dups.
-    lst.extend(y for y in lst2 if y not in lst) 
+    fields, lst2 = openFile(fil) # go get the second file and return a list 
     print(f'Merging: {args.filename} and {fil} into a new file called new-merged-csv.csv')
-
+    lst.extend(lst2)
     ## Save the merged file into a new file so we don't destroy original.
     with open('new-merged-csv.csv', 'w', newline='') as f: #
         write = csv.writer(f) # 
