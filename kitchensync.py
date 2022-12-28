@@ -16,12 +16,14 @@
 import sys                              # printing to a file
 import csv                              # read csv files
 import re                               # search expressions
+import json                             # save some data as json
 import argparse                         # commandline argument parser
 import requests                         # grab robots.txt and other text, html files.
 from tqdm import tqdm                   # progress bar for longer processes
 import subprocess                       # execute local processes
-import shodan                           # run shodan searches
+import shodan                           # run shodan API searches
 import networkx as nx                   # import network graphing.
+from censys.search import CensysHosts   # censys recon API
 
 # Argument Parser
 parser = argparse.ArgumentParser(
@@ -34,6 +36,7 @@ parser.add_argument("filename", type=str, help='The [filename] of CSV to read an
 parser.add_argument('-address', '--address', action='store_true', default=False, help='Generate a list of subnets identified')
 parser.add_argument('-bar', '--sBar', action='store_true', default=False, help='Generate a stacked barchart on the results of a TOPTEN type search only')
 parser.add_argument('-c', '--cAttack', action='store_true', default=False, help='Automatically create attack files and store in all output formats.')
+parser.add_argument('-censys', '--censys', action='store_true', default=False, help='Run a Censys search based upon your API connectivity')
 parser.add_argument('-download', '--download', type=str, default='robots.txt', help='Download a file, and list the filename to name the file after its been downloaded [ex. -d robots.txt].  Text file only.')
 parser.add_argument('-f', '--field', type=str, default='host', help='The field to search for in the data set [-s Risk]')
 parser.add_argument('-graph', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks for any search.  Run a search and use [-g] at the end.')
@@ -43,7 +46,7 @@ parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV f
 parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
 parser.add_argument('-q', '--query', type=int, default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
 parser.add_argument('-s', '--search', type=str, default='.', help='search term to use [ -s Critical].  [ a period . is a wildcard for all]')
-parser.add_argument('-shodan', '--shodan', action='store_true', default=False, help='run showdan on IP addresses provided')
+parser.add_argument('-shodan', '--shodan', action='store_true', default=False, help='run showdan on IP addresses provided using the Shodan API')
 parser.add_argument('-sum', '--summary', type=str,  default=False, help='List all types of vulnability names discovered.  This is a simple list to aid in searching data.  Use: [ -sum Name ]')
 parser.add_argument('-top', '--topTen', type=int, default=False, help='Generate a top 10 list of systems, and risks.  using [ -b ] together will generate a stacked bar chart.')
 parser.add_argument('-w', '--webScrap', action='store_true', default=False, help='WebScrape to a file. Example [robots.txt]')
@@ -53,6 +56,25 @@ args = parser.parse_args()
 
 #global variables
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
+
+def isPrivateAddr(lst:list) -> bool:
+    for rows in lst:
+        if rows[4].startswith("10.") or rows[4].startswith("172.16") or rows[4].startswith("192.168.1"):
+            return True
+        else:
+            return False
+
+def cen(lst:list) -> None:
+    "Run a Censys search on the data discovered"
+    # run censys config to add your api/secret to the environment
+    if isPrivateAddr(lst) == True: print('You cannot run Censys on a private network', sys.exit())
+    h = CensysHosts()
+    hosts = h.bulk_view(rowInRows(lst, 4))
+    json_object = json.dumps(hosts, indent=4)
+    # write to json file
+    with open('censys.json', 'w') as outfile:
+        outfile.write(json_object)
+    print('censys.json file written.')
 
 # put together a newtork graph
 def networkGraph(lst:list) -> None:
@@ -92,7 +114,7 @@ def sdan(lst:list)-> list:
         SHODAN_API_KEY = f.read()
         api = shodan.Shodan(SHODAN_API_KEY)
     except IOError as err:
-        print('Check your key.txt file for your API key to the Shodan Service.')
+        print('Check your key.txt file for your API- shodan=API for the Shodan Service.')
 
     if args.aPrint == True: 
         print('Printing to a file called shodan.txt') 
@@ -566,6 +588,10 @@ def main():
     if args.address !=False:
         print('\n Generating Subnet List')
         subnetFinder(lst)
+        sys.exit()
+    if args.censys !=False:
+        print('\n Censys Query Started')
+        cen(lst) # run censys scan
         sys.exit()
 
     printList(fields, lst, ipLst) # print fields, and findings.
