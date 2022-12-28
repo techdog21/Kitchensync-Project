@@ -1,3 +1,4 @@
+censys==2.1.9
 cve_searchsploit==1.7
 matplotlib==3.5.1
 networkx==2.7.1
