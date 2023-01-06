@@ -41,7 +41,7 @@ parser.add_argument('-download', '--download', type=str, default='robots.txt', h
 parser.add_argument('-f', '--field', type=str, default='host', help='The field to search for in the data set [-s Risk]')
 parser.add_argument('-graph', '--cGraphics', action='store_true', default=False, help='Create a graph of the vulnerability risks for any search.  Run a search and use [-g] at the end.')
 parser.add_argument('-ip', '--iPrint', action ='store_true', default=False, help='Print a file of the IP addresses of a search.  Run a search and put [-p] at the end')
-parser.add_argument('-l', '--lUsers', type=str, help='Display a list of users that Nessus discovered.')
+parser.add_argument('-bloodhound', '--bloodhound', type=str, default=".", help='Display a list of AD information that Nessus discovered.')
 parser.add_argument('-merge', '--cMerge', type=str, help='Merge two Nessus CSV files together.  [kitchensink.py test.csv -m second.csv] the merged file will be new-merged-csv.csv')
 parser.add_argument('-print', '--aPrint', action='store_true', default=False, help='Print search output to a file.  Run grep/awk on this file to pull data as necessary')
 parser.add_argument('-q', '--query', type=int, default=False, help='Expand the information on a particular finding. SEARCH field cannot be a wildcard ![-s .]!. It must be a specific search.')
@@ -58,6 +58,7 @@ args = parser.parse_args()
 original_stdout = sys.stdout # grab a copy of standard out now before we do any console prints.
 
 def isPrivateAddr(lst:list) -> bool:
+    "Check for RFC1918 local addresses"
     for rows in lst:
         if rows[4].startswith("10.") or rows[4].startswith("172.16") or rows[4].startswith("192.168.1"):
             return True
@@ -504,11 +505,11 @@ def nameSummary(fields:list, lst:list, search:str) -> None:
         print(f'\n\n[-] Invalid Search, the options you have chosen are invalid.  {err}')
     if args.aPrint == True: turnOffPrint()
 
-def localUsers(fields:list, lst:list, fcat:str) -> None:
+def blood(fields:list, lst:list, fcat:str) -> None:
     "A module to review the lows for disabled users"
     mainSP = []
     # print data to a file if desired.
-    if args.aPrint == True: turnOnPrint('localusers.txt')
+    if args.aPrint == True: turnOnPrint('adinfo.txt')
     # grab a list of systems that have the synopsis field for users
     newLst, ipLst = findResults(fields, lst, fcat, 'name',) 
     for rows in newLst:
@@ -579,8 +580,8 @@ def main():
     if (args.sBar == True) and (args.topTen >= 15):
         print('\n\nYour Top 10 search cannot be greater than 15 for a stacked bar chart.')
         sys.exit()
-    if args.lUsers !=None :
-        localUsers(fields, lst, args.lUsers)
+    if args.bloodhound !=None :
+        blood(fields, lst, args.bloodhound)
         sys.exit()
     if args.shodan !=False:
         sdan(lst)
